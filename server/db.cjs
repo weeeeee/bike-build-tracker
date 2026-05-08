@@ -1,14 +1,10 @@
-const sqlite3 = require('sqlite3').verbose();
-const { open } = require('sqlite');
+const Database = require('better-sqlite3');
 const path = require('path');
 
-async function initDb() {
-    const db = await open({
-        filename: path.join(__dirname, '..', 'database.sqlite'),
-        driver: sqlite3.Database
-    });
+function initDb() {
+    const db = new Database(path.join(__dirname, '..', 'database.sqlite'));
 
-    await db.exec(`
+    db.exec(`
         CREATE TABLE IF NOT EXISTS builds (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,

@@ -22,19 +22,15 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-let db;
-
-(async () => {
-    db = await initDb();
-    console.log('Database initialized');
-})();
+const db = initDb();
+console.log('Database initialized');
 
 // API Routes
 
 // Get all builds
-app.get('/api/builds', async (req, res) => {
+app.get('/api/builds', (req, res) => {
     try {
-        const builds = await db.all('SELECT * FROM builds ORDER BY created_at DESC');
+        const builds = db.prepare('SELECT * FROM builds ORDER BY created_at DESC').all();
         res.json(builds);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -42,21 +38,22 @@ app.get('/api/builds', async (req, res) => {
 });
 
 // Create a new build
-app.post('/api/builds', async (req, res) => {
+app.post('/api/builds', (req, res) => {
     const { name } = req.body;
     try {
-        const result = await db.run('INSERT INTO builds (name) VALUES (?)', [name]);
-        const buildId = result.lastID;
+        const info = db.prepare('INSERT INTO builds (name) VALUES (?)').run(name);
+        const buildId = info.lastInsertRowid;
         
-        // Initialize 14 component slots for the new build
+        // Initialize 14 component slots
         const componentTypes = [
             'frame', 'wheelset', 'bottom-bracket', 'crank', 
             'front-derailleur', 'rear-derailleur', 'cassette', 'chain',
             'seat', 'seat-post', 'headset', 'stem', 'fork', 'handlebars'
         ];
         
+        const stmt = db.prepare('INSERT INTO components (build_id, type) VALUES (?, ?)');
         for (const type of componentTypes) {
-            await db.run('INSERT INTO components (build_id, type) VALUES (?, ?)', [buildId, type]);
+            stmt.run(buildId, type);
         }
         
         res.json({ id: buildId, name });
@@ -65,13 +62,13 @@ app.post('/api/builds', async (req, res) => {
     }
 });
 
-// Get build details with components
-app.get('/api/builds/:id', async (req, res) => {
+// Get build details
+app.get('/api/builds/:id', (req, res) => {
     try {
-        const build = await db.get('SELECT * FROM builds WHERE id = ?', [req.params.id]);
+        const build = db.prepare('SELECT * FROM builds WHERE id = ?').get(req.params.id);
         if (!build) return res.status(404).json({ error: 'Build not found' });
         
-        const components = await db.all('SELECT * FROM components WHERE build_id = ?', [req.params.id]);
+        const components = db.prepare('SELECT * FROM components WHERE build_id = ?').all(req.params.id);
         res.json({ ...build, components });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -79,21 +76,28 @@ app.get('/api/builds/:id', async (req, res) => {
 });
 
 // Update a component
-app.put('/api/components/:id', upload.single('image'), async (req, res) => {
+app.put('/api/components/:id', upload.single('image'), (req, res) => {
     const { name, price, description, notes, is_ordered } = req.body;
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : req.body.image_url;
     
     try {
-        await db.run(
-            `UPDATE components SET 
+        db.prepare(`
+            UPDATE components SET 
                 name = ?, 
                 price = ?, 
                 description = ?, 
                 notes = ?, 
                 is_ordered = ?, 
                 image_url = ? 
-            WHERE id = ?`,
-            [name, price, description, notes, is_ordered === 'true' ? 1 : 0, imageUrl, req.params.id]
+            WHERE id = ?
+        `).run(
+            name, 
+            price, 
+            description, 
+            notes, 
+            is_ordered === 'true' ? 1 : 0, 
+            imageUrl, 
+            req.params.id
         );
         res.json({ success: true });
     } catch (err) {
