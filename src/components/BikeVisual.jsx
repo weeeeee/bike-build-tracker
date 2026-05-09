@@ -192,8 +192,16 @@ export default function BikeVisual({ components = [] }) {
             <path d="M550,193 L582,193" fill="none" stroke="currentColor" strokeWidth="7" strokeLinecap="round" />
             <path d="M582,193 Q596,193 596,209 Q596,232 574,232"
               fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" />
-            {/* Brake hood suggestion */}
-            <circle cx="581" cy="193" r="5" fill="currentColor" opacity="0.7" />
+          </g>
+
+          {/* ── LEVERS (brake/shift levers on hood) ── */}
+          <g style={{ color: color('levers'), filter: glow('levers') }}>
+            {/* Hood body — teardrop shape on top of bar */}
+            <path d="M576,187 Q582,182 588,185 Q592,188 590,196 Q588,202 582,203 Q577,202 576,196 Z"
+              fill="currentColor" />
+            {/* Lever blade hanging down from hood */}
+            <path d="M584,200 Q586,212 582,218"
+              fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
           </g>
 
           {/* ── HEADSET ── */}

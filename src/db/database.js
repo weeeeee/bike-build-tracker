@@ -7,6 +7,7 @@ export const COMPONENT_TYPES = [
   'crank',
   'frontDerailleur',
   'rearDerailleur',
+  'levers',
   'cassette',
   'chain',
   'seat',
@@ -24,6 +25,7 @@ export const COMPONENT_LABELS = {
   crank: 'Crank',
   frontDerailleur: 'Front Derailleur',
   rearDerailleur: 'Rear Derailleur',
+  levers: 'Levers',
   cassette: 'Cassette',
   chain: 'Chain',
   seat: 'Seat',
@@ -58,6 +60,26 @@ db.version(3).stores({
   components: '++id, buildId, type, status',
   orders: '++id, buildId, componentType, status, orderDate',
   extras: '++id, buildId, status',
+});
+
+// v4: adds 'levers' component type — backfills stub into existing builds
+db.version(4).stores({
+  builds: '++id, name, createdAt, updatedAt',
+  components: '++id, buildId, type, status',
+  orders: '++id, buildId, componentType, status, orderDate',
+  extras: '++id, buildId, status',
+}).upgrade(async tx => {
+  const builds = await tx.table('builds').toArray();
+  for (const build of builds) {
+    const existing = await tx.table('components')
+      .where({ buildId: build.id, type: 'levers' }).first();
+    if (!existing) {
+      await tx.table('components').add({
+        buildId: build.id, type: 'levers', name: '', imageUrl: '',
+        price: '', description: '', notes: '', sourceUrl: '', status: 'planned',
+      });
+    }
+  }
 });
 
 export async function createBuild(name, description = '') {
