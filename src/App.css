@@ -533,10 +533,12 @@ label {
 }
 .comp-thumb img {
   width: 100%;
-  max-height: 100px;
-  object-fit: cover;
+  max-height: 160px;
+  object-fit: contain;
+  background: #0b111e;
   border-radius: 0.5rem;
   border: 1px solid var(--border);
+  display: block;
 }
 .comp-source-link {
   display: inline-flex;
@@ -609,13 +611,13 @@ label {
 }
 .image-preview {
   margin-top: 0.75rem;
-  position: relative;
-  display: inline-block;
 }
 .image-preview img {
-  max-width: 200px;
-  max-height: 120px;
-  object-fit: cover;
+  max-width: 100%;
+  max-height: 200px;
+  width: auto;
+  object-fit: contain;
+  background: #0b111e;
   border-radius: 0.5rem;
   border: 1px solid var(--border);
   display: block;
