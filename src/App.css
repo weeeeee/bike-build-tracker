@@ -538,6 +538,23 @@ label {
   border-radius: 0.5rem;
   border: 1px solid var(--border);
 }
+.comp-source-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--primary);
+  text-decoration: none;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(59,130,246,0.3);
+  transition: all 0.2s;
+}
+.comp-source-link:hover {
+  background: rgba(59,130,246,0.1);
+  border-color: var(--primary);
+}
 
 /* Status radio group */
 .status-radio-group {

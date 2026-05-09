@@ -17,6 +17,7 @@ export default function ComponentPanel({ component, label }) {
     price: component.price || '',
     description: component.description || '',
     notes: component.notes || '',
+    sourceUrl: component.sourceUrl || '',
     status: component.status || 'planned',
   });
   const [saving, setSaving] = useState(false);
@@ -30,6 +31,7 @@ export default function ComponentPanel({ component, label }) {
       price: component.price || '',
       description: component.description || '',
       notes: component.notes || '',
+      sourceUrl: component.sourceUrl || '',
       status: component.status || 'planned',
     });
   }, [component]);
@@ -53,7 +55,7 @@ export default function ComponentPanel({ component, label }) {
 
   const handleClear = async () => {
     if (!confirm(`Clear all data for ${label}?`)) return;
-    const cleared = { name: '', imageUrl: '', price: '', description: '', notes: '', status: 'planned' };
+    const cleared = { name: '', imageUrl: '', price: '', description: '', notes: '', sourceUrl: '', status: 'planned' };
     setForm(cleared);
     await updateComponent(component.id, cleared);
     setOpen(false);
@@ -152,6 +154,17 @@ export default function ComponentPanel({ component, label }) {
           </div>
 
           <div className="input-group">
+            <label>Source Link</label>
+            <input
+              name="sourceUrl"
+              type="url"
+              value={form.sourceUrl}
+              onChange={handleChange}
+              placeholder="https://shop.com/product..."
+            />
+          </div>
+
+          <div className="input-group">
             <label>Image</label>
             <ImageUpload
               value={form.imageUrl}
@@ -175,10 +188,23 @@ export default function ComponentPanel({ component, label }) {
         </form>
       )}
 
-      {/* Filled image thumbnail (collapsed view) */}
-      {!open && isFilled && component.imageUrl && (
+      {/* Collapsed extras: thumbnail + source link */}
+      {!open && isFilled && (component.imageUrl || component.sourceUrl) && (
         <div className="comp-thumb">
-          <img src={component.imageUrl} alt={component.name} />
+          {component.imageUrl && (
+            <img src={component.imageUrl} alt={component.name} />
+          )}
+          {component.sourceUrl && (
+            <a
+              href={component.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="comp-source-link"
+              onClick={e => e.stopPropagation()}
+            >
+              🔗 View source
+            </a>
+          )}
         </div>
       )}
     </div>

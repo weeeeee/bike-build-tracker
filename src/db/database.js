@@ -45,6 +45,13 @@ db.version(1).stores({
   orders: '++id, buildId, componentType, status, orderDate',
 });
 
+// v2: adds sourceUrl field to components (Dexie handles migration automatically)
+db.version(2).stores({
+  builds: '++id, name, createdAt, updatedAt',
+  components: '++id, buildId, type, status',
+  orders: '++id, buildId, componentType, status, orderDate',
+});
+
 export async function createBuild(name, description = '') {
   return db.transaction('rw', db.builds, db.components, async () => {
     const now = new Date().toISOString();
@@ -57,6 +64,7 @@ export async function createBuild(name, description = '') {
       price: '',
       description: '',
       notes: '',
+      sourceUrl: '',
       status: 'planned',
     }));
     await db.components.bulkAdd(stubs);
