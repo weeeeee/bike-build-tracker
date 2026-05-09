@@ -10,10 +10,14 @@ export default function BuildCard({ build, onSelect }) {
     () => db.components.where('buildId').equals(build.id).toArray(),
     [build.id]
   ) || [];
+  const extras = useLiveQuery(
+    () => db.extras.where('buildId').equals(build.id).toArray(),
+    [build.id]
+  ) || [];
 
   const filled  = getCompletionCount(components);
   const pct     = getCompletionPercent(components);
-  const total   = getTotalPrice(components);
+  const total   = getTotalPrice(components, extras);
   const done    = filled === COMPONENT_TYPES.length;
 
   const barColor = done

@@ -4,6 +4,7 @@ import { db, renameBuild, getCompletionPercent, getTotalPrice, COMPONENT_TYPES, 
 import ComponentPanel from './ComponentPanel';
 import BikeVisual from './BikeVisual';
 import OrderTracker from './OrderTracker';
+import ExtrasPanel from './ExtrasPanel';
 
 export default function BuildDetail({ buildId, onBack }) {
   const [tab, setTab] = useState('components');
@@ -15,11 +16,15 @@ export default function BuildDetail({ buildId, onBack }) {
     () => db.components.where('buildId').equals(buildId).toArray(),
     [buildId]
   ) || [];
+  const extras = useLiveQuery(
+    () => db.extras.where('buildId').equals(buildId).toArray(),
+    [buildId]
+  ) || [];
 
   if (!build) return <div className="loading">Loading…</div>;
 
   const pct   = getCompletionPercent(components);
-  const total = getTotalPrice(components);
+  const total = getTotalPrice(components, extras);
   const done  = pct === 100;
 
   const handleRename = async (e) => {
@@ -103,7 +108,7 @@ export default function BuildDetail({ buildId, onBack }) {
       {/* ── Content ── */}
       {tab === 'components' ? (
         <div className="detail-layout">
-          {/* Left: component panels */}
+          {/* Left: component panels + extras */}
           <div className="comp-list">
             {sortedComponents.map(comp => (
               <ComponentPanel
@@ -112,6 +117,7 @@ export default function BuildDetail({ buildId, onBack }) {
                 label={COMPONENT_LABELS[comp.type] || comp.type}
               />
             ))}
+            <ExtrasPanel buildId={buildId} />
           </div>
 
           {/* Right: sticky bike visual */}

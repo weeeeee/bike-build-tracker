@@ -45,11 +45,19 @@ db.version(1).stores({
   orders: '++id, buildId, componentType, status, orderDate',
 });
 
-// v2: adds sourceUrl field to components (Dexie handles migration automatically)
+// v2: adds sourceUrl field to components
 db.version(2).stores({
   builds: '++id, name, createdAt, updatedAt',
   components: '++id, buildId, type, status',
   orders: '++id, buildId, componentType, status, orderDate',
+});
+
+// v3: adds extras table for accessories, spacers, pedals, etc.
+db.version(3).stores({
+  builds: '++id, name, createdAt, updatedAt',
+  components: '++id, buildId, type, status',
+  orders: '++id, buildId, componentType, status, orderDate',
+  extras: '++id, buildId, status',
 });
 
 export async function createBuild(name, description = '') {
@@ -73,11 +81,24 @@ export async function createBuild(name, description = '') {
 }
 
 export async function deleteBuild(id) {
-  return db.transaction('rw', db.builds, db.components, db.orders, async () => {
+  return db.transaction('rw', db.builds, db.components, db.orders, db.extras, async () => {
     await db.components.where('buildId').equals(id).delete();
     await db.orders.where('buildId').equals(id).delete();
+    await db.extras.where('buildId').equals(id).delete();
     await db.builds.delete(id);
   });
+}
+
+export async function addExtra(buildId, fields) {
+  return db.extras.add({ buildId, ...fields, createdAt: new Date().toISOString() });
+}
+
+export async function updateExtra(id, fields) {
+  return db.extras.update(id, fields);
+}
+
+export async function deleteExtra(id) {
+  return db.extras.delete(id);
 }
 
 export async function renameBuild(id, name) {
@@ -112,6 +133,11 @@ export function getCompletionPercent(components) {
   return Math.round((getCompletionCount(components) / COMPONENT_TYPES.length) * 100);
 }
 
-export function getTotalPrice(components) {
-  return components.reduce((sum, c) => sum + (parseFloat(c.price) || 0), 0);
+export function getTotalPrice(components, extras = []) {
+  const compTotal = components.reduce((sum, c) => sum + (parseFloat(c.price) || 0), 0);
+  const extrasTotal = extras.reduce((sum, e) => {
+    const qty = parseInt(e.quantity) || 1;
+    return sum + (parseFloat(e.price) || 0) * qty;
+  }, 0);
+  return compTotal + extrasTotal;
 }
