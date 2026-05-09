@@ -18,16 +18,17 @@ const emptyForm = {
   description: '',
   notes: '',
   sourceUrl: '',
-  imageUrl: '',
+  imageUrls: [],
   status: 'planned',
 };
 
-function ExtraRow({ extra, onSaved }) {
-  const [open, setOpen]   = useState(false);
-  const [form, setForm]   = useState({ ...extra });
+function ExtraRow({ extra }) {
+  const [open, setOpen]     = useState(false);
+  const [form, setForm]     = useState(toForm(extra));
   const [saving, setSaving] = useState(false);
 
   const subtotal = (parseFloat(extra.price) || 0) * (parseInt(extra.quantity) || 1);
+  const images   = extra.imageUrls || [];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -40,7 +41,6 @@ function ExtraRow({ extra, onSaved }) {
     await updateExtra(extra.id, form);
     setSaving(false);
     setOpen(false);
-    onSaved?.();
   };
 
   const handleDelete = async () => {
@@ -51,7 +51,7 @@ function ExtraRow({ extra, onSaved }) {
     <div className={`extra-row${open ? ' open' : ''}`}>
       <div className="extra-row-header" onClick={() => setOpen(o => !o)}>
         <div className="extra-row-left">
-          <span className={`comp-filled-dot on`} />
+          <span className="comp-filled-dot on" />
           <span className="extra-name">{extra.name}</span>
           {extra.category && <span className="extra-category-tag">{extra.category}</span>}
           <span className="extra-qty-price">
@@ -63,10 +63,8 @@ function ExtraRow({ extra, onSaved }) {
           <span className={`status-badge ${STATUS_BADGE[extra.status] || 'status-planned'}`}>
             {extra.status || 'planned'}
           </span>
-          <button
-            className="btn btn-sm btn-danger"
-            onClick={e => { e.stopPropagation(); handleDelete(); }}
-          >✕</button>
+          <button className="btn btn-sm btn-danger"
+            onClick={e => { e.stopPropagation(); handleDelete(); }}>✕</button>
           <span className="comp-chevron">{open ? '▲' : '▼'}</span>
         </div>
       </div>
@@ -120,8 +118,11 @@ function ExtraRow({ extra, onSaved }) {
           </div>
 
           <div className="input-group">
-            <label>Image</label>
-            <ImageUpload value={form.imageUrl} onChange={url => setForm(prev => ({ ...prev, imageUrl: url }))} />
+            <label>Images</label>
+            <ImageUpload
+              values={form.imageUrls}
+              onChange={urls => setForm(prev => ({ ...prev, imageUrls: urls }))}
+            />
           </div>
 
           <div className="comp-form-actions">
@@ -133,23 +134,21 @@ function ExtraRow({ extra, onSaved }) {
         </form>
       )}
 
-      {!open && extra.imageUrl && (
+      {!open && (images.length > 0 || extra.sourceUrl) && (
         <div className="comp-thumb">
-          <img src={extra.imageUrl} alt={extra.name} />
+          {images.length > 0 && (
+            <div className="comp-thumb-grid">
+              {images.map((url, i) => (
+                <img key={i} src={url} alt={`${extra.name} ${i + 1}`} />
+              ))}
+            </div>
+          )}
           {extra.sourceUrl && (
             <a href={extra.sourceUrl} target="_blank" rel="noopener noreferrer"
               className="comp-source-link" onClick={e => e.stopPropagation()}>
               🔗 View source
             </a>
           )}
-        </div>
-      )}
-      {!open && !extra.imageUrl && extra.sourceUrl && (
-        <div className="comp-thumb">
-          <a href={extra.sourceUrl} target="_blank" rel="noopener noreferrer"
-            className="comp-source-link" onClick={e => e.stopPropagation()}>
-            🔗 View source
-          </a>
         </div>
       )}
     </div>
@@ -166,9 +165,9 @@ export default function ExtrasPanel({ buildId }) {
     [buildId]
   ) || [];
 
-  const extrasTotal = extras.reduce((sum, e) => {
-    return sum + (parseFloat(e.price) || 0) * (parseInt(e.quantity) || 1);
-  }, 0);
+  const extrasTotal = extras.reduce(
+    (sum, e) => sum + (parseFloat(e.price) || 0) * (parseInt(e.quantity) || 1), 0
+  );
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -191,7 +190,9 @@ export default function ExtrasPanel({ buildId }) {
         <div>
           <h4 className="extras-title">Extras &amp; Accessories</h4>
           {extras.length > 0 && (
-            <span className="extras-subtotal">{extras.length} item{extras.length !== 1 ? 's' : ''} · ${extrasTotal.toFixed(2)}</span>
+            <span className="extras-subtotal">
+              {extras.length} item{extras.length !== 1 ? 's' : ''} · ${extrasTotal.toFixed(2)}
+            </span>
           )}
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => setShowForm(s => !s)}>
@@ -204,11 +205,13 @@ export default function ExtrasPanel({ buildId }) {
           <div className="comp-form-grid">
             <div className="input-group">
               <label>Name *</label>
-              <input name="name" value={form.name} onChange={handleChange} placeholder="e.g. Pedals, Spacer kit, Bar tape…" autoFocus required />
+              <input name="name" value={form.name} onChange={handleChange}
+                placeholder="e.g. Pedals, Spacer kit, Bar tape…" autoFocus required />
             </div>
             <div className="input-group">
               <label>Category</label>
-              <input name="category" value={form.category} onChange={handleChange} placeholder="e.g. Pedal, Spacer, Cable…" />
+              <input name="category" value={form.category} onChange={handleChange}
+                placeholder="e.g. Pedal, Spacer, Cable…" />
             </div>
             <div className="input-group">
               <label>Quantity</label>
@@ -216,7 +219,8 @@ export default function ExtrasPanel({ buildId }) {
             </div>
             <div className="input-group">
               <label>Price each ($)</label>
-              <input name="price" type="number" min="0" step="0.01" value={form.price} onChange={handleChange} placeholder="0.00" />
+              <input name="price" type="number" min="0" step="0.01" value={form.price}
+                onChange={handleChange} placeholder="0.00" />
             </div>
           </div>
           <div className="input-group">
@@ -233,7 +237,8 @@ export default function ExtrasPanel({ buildId }) {
           <div className="comp-form-grid">
             <div className="input-group">
               <label>Description</label>
-              <textarea name="description" value={form.description} onChange={handleChange} rows="2" placeholder="Size, spec, compatibility…" />
+              <textarea name="description" value={form.description} onChange={handleChange} rows="2"
+                placeholder="Size, spec, compatibility…" />
             </div>
             <div className="input-group">
               <label>Notes</label>
@@ -242,7 +247,15 @@ export default function ExtrasPanel({ buildId }) {
           </div>
           <div className="input-group">
             <label>Source Link</label>
-            <input name="sourceUrl" type="url" value={form.sourceUrl} onChange={handleChange} placeholder="https://shop.com/product…" />
+            <input name="sourceUrl" type="url" value={form.sourceUrl} onChange={handleChange}
+              placeholder="https://shop.com/product…" />
+          </div>
+          <div className="input-group">
+            <label>Images</label>
+            <ImageUpload
+              values={form.imageUrls}
+              onChange={urls => setForm(prev => ({ ...prev, imageUrls: urls }))}
+            />
           </div>
           <div className="comp-form-actions">
             <button type="submit" className="btn btn-primary" disabled={saving}>
@@ -254,14 +267,26 @@ export default function ExtrasPanel({ buildId }) {
       )}
 
       {extras.length === 0 && !showForm ? (
-        <p className="extras-empty">No extras yet — add pedals, spacers, bar tape, cables, and anything else the build needs.</p>
+        <p className="extras-empty">No extras yet — add pedals, spacers, bar tape, cables, and anything else.</p>
       ) : (
         <div className="extras-list">
-          {extras.map(extra => (
-            <ExtraRow key={extra.id} extra={extra} />
-          ))}
+          {extras.map(extra => <ExtraRow key={extra.id} extra={extra} />)}
         </div>
       )}
     </div>
   );
+}
+
+function toForm(extra) {
+  return {
+    name:        extra.name        || '',
+    category:    extra.category    || '',
+    quantity:    extra.quantity    || '1',
+    price:       extra.price       || '',
+    description: extra.description || '',
+    notes:       extra.notes       || '',
+    sourceUrl:   extra.sourceUrl   || '',
+    imageUrls:   Array.isArray(extra.imageUrls) ? extra.imageUrls : [],
+    status:      extra.status      || 'planned',
+  };
 }

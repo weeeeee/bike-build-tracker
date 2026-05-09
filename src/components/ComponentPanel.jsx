@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { updateComponent, COMPONENT_STATUSES } from '../db/database';
 import ImageUpload from './ImageUpload';
 
@@ -11,30 +11,11 @@ const STATUS_BADGE = {
 
 export default function ComponentPanel({ component, label }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
-    name: component.name || '',
-    imageUrl: component.imageUrl || '',
-    price: component.price || '',
-    description: component.description || '',
-    notes: component.notes || '',
-    sourceUrl: component.sourceUrl || '',
-    status: component.status || 'planned',
-  });
+  const [form, setForm] = useState(toForm(component));
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saved,  setSaved]  = useState(false);
 
-  // Sync external changes (e.g. after save)
-  useEffect(() => {
-    setForm({
-      name: component.name || '',
-      imageUrl: component.imageUrl || '',
-      price: component.price || '',
-      description: component.description || '',
-      notes: component.notes || '',
-      sourceUrl: component.sourceUrl || '',
-      status: component.status || 'planned',
-    });
-  }, [component]);
+  useEffect(() => { setForm(toForm(component)); }, [component]);
 
   const isFilled = Boolean(component.name?.trim());
 
@@ -55,11 +36,13 @@ export default function ComponentPanel({ component, label }) {
 
   const handleClear = async () => {
     if (!confirm(`Clear all data for ${label}?`)) return;
-    const cleared = { name: '', imageUrl: '', price: '', description: '', notes: '', sourceUrl: '', status: 'planned' };
+    const cleared = { name: '', imageUrls: [], price: '', description: '', notes: '', sourceUrl: '', status: 'planned' };
     setForm(cleared);
     await updateComponent(component.id, cleared);
     setOpen(false);
   };
+
+  const images = component.imageUrls || [];
 
   return (
     <div className={`comp-panel${isFilled ? ' filled' : ''}${open ? ' open' : ''}`}>
@@ -118,13 +101,7 @@ export default function ComponentPanel({ component, label }) {
             <div className="status-radio-group">
               {COMPONENT_STATUSES.map(s => (
                 <label key={s} className={`status-radio${form.status === s ? ' selected' : ''} ${STATUS_BADGE[s]}`}>
-                  <input
-                    type="radio"
-                    name="status"
-                    value={s}
-                    checked={form.status === s}
-                    onChange={handleChange}
-                  />
+                  <input type="radio" name="status" value={s} checked={form.status === s} onChange={handleChange} />
                   {s.charAt(0).toUpperCase() + s.slice(1)}
                 </label>
               ))}
@@ -133,42 +110,24 @@ export default function ComponentPanel({ component, label }) {
 
           <div className="input-group">
             <label>Description</label>
-            <textarea
-              name="description"
-              value={form.description}
-              onChange={handleChange}
-              rows="2"
-              placeholder="Specs, model info..."
-            />
+            <textarea name="description" value={form.description} onChange={handleChange} rows="2" placeholder="Specs, model info..." />
           </div>
 
           <div className="input-group">
             <label>Notes</label>
-            <textarea
-              name="notes"
-              value={form.notes}
-              onChange={handleChange}
-              rows="2"
-              placeholder="Compatibility notes, installation notes..."
-            />
+            <textarea name="notes" value={form.notes} onChange={handleChange} rows="2" placeholder="Compatibility notes, installation notes..." />
           </div>
 
           <div className="input-group">
             <label>Source Link</label>
-            <input
-              name="sourceUrl"
-              type="url"
-              value={form.sourceUrl}
-              onChange={handleChange}
-              placeholder="https://shop.com/product..."
-            />
+            <input name="sourceUrl" type="url" value={form.sourceUrl} onChange={handleChange} placeholder="https://shop.com/product..." />
           </div>
 
           <div className="input-group">
-            <label>Image</label>
+            <label>Images</label>
             <ImageUpload
-              value={form.imageUrl}
-              onChange={url => setForm(prev => ({ ...prev, imageUrl: url }))}
+              values={form.imageUrls}
+              onChange={urls => setForm(prev => ({ ...prev, imageUrls: urls }))}
             />
           </div>
 
@@ -177,31 +136,26 @@ export default function ComponentPanel({ component, label }) {
               {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save'}
             </button>
             {isFilled && (
-              <button type="button" className="btn btn-danger" onClick={handleClear}>
-                Clear
-              </button>
+              <button type="button" className="btn btn-danger" onClick={handleClear}>Clear</button>
             )}
-            <button type="button" className="btn" onClick={() => setOpen(false)}>
-              Cancel
-            </button>
+            <button type="button" className="btn" onClick={() => setOpen(false)}>Cancel</button>
           </div>
         </form>
       )}
 
-      {/* Collapsed extras: thumbnail + source link */}
-      {!open && isFilled && (component.imageUrl || component.sourceUrl) && (
+      {/* Collapsed: image thumbnails + source link */}
+      {!open && isFilled && (images.length > 0 || component.sourceUrl) && (
         <div className="comp-thumb">
-          {component.imageUrl && (
-            <img src={component.imageUrl} alt={component.name} />
+          {images.length > 0 && (
+            <div className="comp-thumb-grid">
+              {images.map((url, i) => (
+                <img key={i} src={url} alt={`${component.name} ${i + 1}`} />
+              ))}
+            </div>
           )}
           {component.sourceUrl && (
-            <a
-              href={component.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="comp-source-link"
-              onClick={e => e.stopPropagation()}
-            >
+            <a href={component.sourceUrl} target="_blank" rel="noopener noreferrer"
+              className="comp-source-link" onClick={e => e.stopPropagation()}>
               🔗 View source
             </a>
           )}
@@ -209,4 +163,16 @@ export default function ComponentPanel({ component, label }) {
       )}
     </div>
   );
+}
+
+function toForm(component) {
+  return {
+    name:        component.name        || '',
+    imageUrls:   Array.isArray(component.imageUrls) ? component.imageUrls : [],
+    price:       component.price       || '',
+    description: component.description || '',
+    notes:       component.notes       || '',
+    sourceUrl:   component.sourceUrl   || '',
+    status:      component.status      || 'planned',
+  };
 }

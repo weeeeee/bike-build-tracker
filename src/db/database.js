@@ -75,11 +75,32 @@ db.version(4).stores({
       .where({ buildId: build.id, type: 'levers' }).first();
     if (!existing) {
       await tx.table('components').add({
-        buildId: build.id, type: 'levers', name: '', imageUrl: '',
+        buildId: build.id, type: 'levers', name: '', imageUrls: [],
         price: '', description: '', notes: '', sourceUrl: '', status: 'planned',
       });
     }
   }
+});
+
+// v5: migrates imageUrl (string) → imageUrls (array) on components and extras
+db.version(5).stores({
+  builds: '++id, name, createdAt, updatedAt',
+  components: '++id, buildId, type, status',
+  orders: '++id, buildId, componentType, status, orderDate',
+  extras: '++id, buildId, status',
+}).upgrade(async tx => {
+  await tx.table('components').toCollection().modify(comp => {
+    if (!Array.isArray(comp.imageUrls)) {
+      comp.imageUrls = comp.imageUrl ? [comp.imageUrl] : [];
+      delete comp.imageUrl;
+    }
+  });
+  await tx.table('extras').toCollection().modify(extra => {
+    if (!Array.isArray(extra.imageUrls)) {
+      extra.imageUrls = extra.imageUrl ? [extra.imageUrl] : [];
+      delete extra.imageUrl;
+    }
+  });
 });
 
 export async function createBuild(name, description = '') {
@@ -90,7 +111,7 @@ export async function createBuild(name, description = '') {
       buildId,
       type,
       name: '',
-      imageUrl: '',
+      imageUrls: [],
       price: '',
       description: '',
       notes: '',
