@@ -103,6 +103,23 @@ db.version(5).stores({
   });
 });
 
+// v6: adds geometry table for per-build frame geometry measurements
+db.version(6).stores({
+  builds: '++id, name, createdAt, updatedAt',
+  components: '++id, buildId, type, status',
+  orders: '++id, buildId, componentType, status, orderDate',
+  extras: '++id, buildId, status',
+  geometry: '++id, &buildId',
+});
+
+export async function saveGeometry(buildId, fields) {
+  const existing = await db.geometry.where('buildId').equals(buildId).first();
+  if (existing) {
+    return db.geometry.update(existing.id, { ...fields, updatedAt: new Date().toISOString() });
+  }
+  return db.geometry.add({ buildId, ...fields, updatedAt: new Date().toISOString() });
+}
+
 export async function createBuild(name, description = '') {
   return db.transaction('rw', db.builds, db.components, async () => {
     const now = new Date().toISOString();

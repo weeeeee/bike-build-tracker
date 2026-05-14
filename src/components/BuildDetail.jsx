@@ -5,6 +5,7 @@ import ComponentPanel from './ComponentPanel';
 import BikeVisual from './BikeVisual';
 import OrderTracker from './OrderTracker';
 import ExtrasPanel from './ExtrasPanel';
+import GeometryTab from './GeometryTab';
 
 export default function BuildDetail({ buildId, onBack }) {
   const [tab, setTab] = useState('components');
@@ -103,6 +104,12 @@ export default function BuildDetail({ buildId, onBack }) {
         >
           Orders
         </button>
+        <button
+          className={`detail-tab${tab === 'geometry' ? ' active' : ''}`}
+          onClick={() => setTab('geometry')}
+        >
+          Geometry
+        </button>
       </div>
 
       {/* ── Content ── */}
@@ -125,8 +132,10 @@ export default function BuildDetail({ buildId, onBack }) {
             <BikeVisual components={components} />
           </div>
         </div>
-      ) : (
+      ) : tab === 'orders' ? (
         <OrderTracker buildId={buildId} />
+      ) : (
+        <GeometryTab buildId={buildId} />
       )}
     </div>
   );

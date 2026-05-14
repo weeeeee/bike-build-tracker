@@ -75,6 +75,17 @@ app.get('/api/builds/:id', (req, res) => {
     }
 });
 
+// Update build details (e.g. name)
+app.put('/api/builds/:id', (req, res) => {
+    const { name } = req.body;
+    try {
+        db.prepare('UPDATE builds SET name = ? WHERE id = ?').run(name, req.params.id);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Update a component
 app.put('/api/components/:id', upload.single('image'), (req, res) => {
     const { name, price, description, notes, is_ordered } = req.body;
