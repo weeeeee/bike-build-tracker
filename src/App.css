@@ -1114,3 +1114,86 @@ label {
   color: var(--text-muted);
   margin: 0.75rem 0 0;
 }
+
+/* ═══════════════════════════════════════════
+   NAV TABS
+═══════════════════════════════════════════ */
+.nav-tab {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.nav-tab:hover { color: var(--text-main); border-color: var(--primary); }
+.nav-tab-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+/* ═══════════════════════════════════════════
+   CONSULTATIONS
+═══════════════════════════════════════════ */
+.consult-list { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.consult-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.18s;
+  overflow: hidden;
+}
+.consult-card:hover { border-color: var(--primary); }
+.consult-card.open  { border-color: var(--primary); }
+
+.consult-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  gap: 1rem;
+}
+
+.consult-name {
+  font-weight: 700;
+  font-size: 1rem;
+  margin-right: 0.6rem;
+}
+
+.consult-contact-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--primary);
+  color: #fff;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+
+.consult-email { font-size: 0.85rem; color: var(--text-muted); }
+.consult-date  { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem; }
+
+.consult-card-body {
+  border-top: 1px solid var(--border);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.consult-field { display: flex; flex-direction: column; gap: 0.2rem; }
+.consult-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.consult-description { margin: 0; line-height: 1.6; white-space: pre-wrap; }
+
+.consult-field-row { display: flex; gap: 0.75rem; margin-top: 0.25rem; }
+
+.consultations-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1rem;
+  color: var(--text-muted);
+  text-align: center;
+}
