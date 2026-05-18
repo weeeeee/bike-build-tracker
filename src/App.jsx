@@ -2,7 +2,6 @@ import { useState } from 'react';
 import './App.css';
 import Dashboard from './components/Dashboard';
 import BuildDetail from './components/BuildDetail';
-import Consultations from './components/Consultations';
 
 export default function App() {
   const [view, setView] = useState('dashboard');
@@ -29,16 +28,10 @@ export default function App() {
           {view === 'build' ? (
             <button className="btn back-nav" onClick={goBack}>← All Builds</button>
           ) : (
-            <>
-              <button
-                className={`btn nav-tab${view === 'dashboard' ? ' nav-tab-active' : ''}`}
-                onClick={goBack}
-              >Builds</button>
-              <button
-                className={`btn nav-tab${view === 'consultations' ? ' nav-tab-active' : ''}`}
-                onClick={() => setView('consultations')}
-              >Consultations</button>
-            </>
+            <button
+              className={`btn nav-tab${view === 'dashboard' ? ' nav-tab-active' : ''}`}
+              onClick={goBack}
+            >Builds</button>
           )}
         </nav>
       </header>
@@ -49,9 +42,6 @@ export default function App() {
         )}
         {view === 'build' && buildId && (
           <BuildDetail buildId={buildId} onBack={goBack} />
-        )}
-        {view === 'consultations' && (
-          <Consultations />
         )}
       </main>
 
