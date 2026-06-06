@@ -1548,3 +1548,21 @@ label {
   font-size: 0.9rem;
   color: var(--text-main);
 }
+
+/* Bookkeeping Dashboard Styles */
+.bookkeeping-metric-card {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.bookkeeping-metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+.recon-badge {
+  font-size: 0.72rem;
+  font-weight: bold;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+

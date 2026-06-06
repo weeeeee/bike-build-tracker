@@ -147,6 +147,26 @@ db.version(9).stores({
   invoices: '++id, customerId, type, status, issueDate, dueDate, stripeInvoiceId, hostedInvoiceUrl, createdAt, updatedAt',
 });
 
+// v10: adds customerId index to builds for bookkeeping linkage
+db.version(10).stores({
+  builds: '++id, name, customerId, createdAt, updatedAt',
+  components: '++id, buildId, type, status',
+  orders: '++id, buildId, componentType, status, orderDate',
+  extras: '++id, buildId, status',
+  geometry: '++id, &buildId',
+  customers: '++id, firstName, lastName, phone, email, stripeCustomerId, city, state',
+  jobs: '++id, customerId, title, stage, bikeModel, estimatedCost, notes, createdAt, updatedAt',
+  invoices: '++id, customerId, type, status, issueDate, dueDate, stripeInvoiceId, hostedInvoiceUrl, createdAt, updatedAt',
+});
+
+export async function associateCustomerToBuild(buildId, customerId) {
+  return db.builds.update(buildId, {
+    customerId: customerId ? parseInt(customerId) : null,
+    updatedAt: new Date().toISOString()
+  });
+}
+
+
 
 export async function saveGeometry(buildId, fields) {
   const existing = await db.geometry.where('buildId').equals(buildId).first();

@@ -282,7 +282,7 @@ export default function InvoicesCMS() {
                             rel="noopener noreferrer"
                             style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                           >
-                            💳 Create Estimate
+                            💳 Create Invoice
                           </a>
                         )}
                         <button className="btn btn-sm btn-danger" onClick={() => handleDelete(inv.id, inv.type)} title="Delete">
@@ -564,9 +564,9 @@ export default function InvoicesCMS() {
                     )}
                     {activePrintDoc.status !== 'Paid' && (
                       <div className="print-hide" style={{ marginTop: '1.5rem', padding: '1rem', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0', display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
-                        <span style={{ color: '#166534', fontWeight: 'bold', fontSize: '0.9rem' }}>Found Invoicing/Estimates:</span>
+                        <span style={{ color: '#166534', fontWeight: 'bold', fontSize: '0.9rem' }}>Found Invoicing:</span>
                         <a href="https://my.found.com/business/business_v391kiTbrTNb/invoices/list" target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-primary" style={{ textDecoration: 'none', background: '#16a34a', color: '#ffffff', border: 'none' }}>
-                          💳 Create Estimate
+                          💳 Create Invoice
                         </a>
                       </div>
                     )}
