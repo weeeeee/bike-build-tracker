@@ -5,7 +5,6 @@ import BuildDetail from './components/BuildDetail';
 import CustomersCMS from './components/CustomersCMS';
 import ServiceBoard from './components/ServiceBoard';
 import InvoicesCMS from './components/InvoicesCMS';
-import SettingsCMS from './components/SettingsCMS';
 import { syncWorkshopData } from './db/database';
 
 export default function App() {
@@ -19,7 +18,7 @@ export default function App() {
     syncWorkshopData();
   }, []);
 
-  const [view, setView] = useState('dashboard'); // 'dashboard', 'build', 'customers', 'service-board', 'invoices', 'settings'
+  const [view, setView] = useState('dashboard'); // 'dashboard', 'build', 'customers', 'service-board', 'invoices'
   const [buildId, setBuildId] = useState(null);
 
   const openBuild = (id) => {
@@ -60,10 +59,6 @@ export default function App() {
                 className={`btn nav-tab${view === 'invoices' ? ' nav-tab-active' : ''}`}
                 onClick={() => { setView('invoices'); setBuildId(null); }}
               >📄 Quotes & Invoices</button>
-              <button
-                className={`btn nav-tab${view === 'settings' ? ' nav-tab-active' : ''}`}
-                onClick={() => { setView('settings'); setBuildId(null); }}
-              >⚙️ Settings</button>
             </>
           )}
         </nav>
@@ -84,9 +79,6 @@ export default function App() {
         )}
         {view === 'invoices' && (
           <InvoicesCMS />
-        )}
-        {view === 'settings' && (
-          <SettingsCMS />
         )}
       </main>
 

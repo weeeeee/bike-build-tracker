@@ -23,13 +23,7 @@ export default function InvoicesCMS() {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [activePrintDoc, setActivePrintDoc] = useState(null);
 
-  // Stripe state
-  const params = new URLSearchParams(window.location.search);
-  const urlMockInvoiceId = params.get('mock-pay-invoice');
-  const [stripeInvoiceIdToPay, setStripeInvoiceIdToPay] = useState(urlMockInvoiceId);
-  const [paymentSimulating, setPaymentSimulating] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [sendingStripeId, setSendingStripeId] = useState(null);
+
 
 
   // Queries
@@ -147,32 +141,7 @@ export default function InvoicesCMS() {
     setShowPrintModal(true);
   };
 
-  const handleSendStripe = async (inv) => {
-    const cust = customerMap[inv.customerId];
-    if (!cust) {
-      alert('Customer details not found.');
-      return;
-    }
-    if (!cust.email) {
-      alert('This customer does not have an email address set. Please go to Customer Directory (CMS) and add an email address to send Stripe invoices.');
-      return;
-    }
 
-    setSendingStripeId(inv.id);
-    try {
-      const result = await sendStripeInvoice(inv.id);
-      if (result.isMock) {
-        alert('Simulator Mode: Mock Stripe invoice created. Click "Pay Online" next to the invoice to simulate payment.');
-      } else {
-        alert('Success: Stripe Invoice created and emailed to the customer!');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Error sending to Stripe: ' + err.message);
-    } finally {
-      setSendingStripeId(null);
-    }
-  };
 
 
   // Search & Filtering
@@ -188,142 +157,6 @@ export default function InvoicesCMS() {
 
     return matchesSearch && matchesType && matchesStatus;
   });
-
-  // Intercept for Stripe payment simulator
-  if (stripeInvoiceIdToPay) {
-    const invoiceToPay = invoices.find(inv => inv.stripeInvoiceId === stripeInvoiceIdToPay);
-    const customerToPay = invoiceToPay ? customerMap[invoiceToPay.customerId] : null;
-
-    if (invoices.length === 0 || !invoiceToPay) {
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: '1rem', color: 'var(--text-main)' }}>
-          <div className="spinner" style={{ width: '40px', height: '40px', border: '3px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--brand-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-          <p>Loading Simulated Stripe Invoice details...</p>
-        </div>
-      );
-    }
-
-    const payTotals = calculateTotals(invoiceToPay.items || []);
-
-    const handleSimulatePayment = async (e) => {
-      e.preventDefault();
-      setPaymentSimulating(true);
-      try {
-        const res = await fetch('/api/public/mock-stripe-pay', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ stripeInvoiceId: stripeInvoiceIdToPay })
-        });
-        if (res.ok) {
-          setPaymentSuccess(true);
-          await db.invoices.where('stripeInvoiceId').equals(stripeInvoiceIdToPay).modify({ status: 'Paid', updatedAt: new Date().toISOString() });
-          setTimeout(() => {
-            const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-            window.history.pushState({ path: newUrl }, '', newUrl);
-            setStripeInvoiceIdToPay(null);
-            setPaymentSuccess(false);
-          }, 2500);
-        } else {
-          alert('Failed to simulate payment webhook.');
-        }
-      } catch (err) {
-        alert('Simulator Payment Error: ' + err.message);
-      } finally {
-        setPaymentSimulating(false);
-      }
-    };
-
-    return (
-      <div className="stripe-sim-overlay">
-        <div className="stripe-sim-card">
-          <div className="stripe-sim-header">
-            <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>stripe</span>
-            <span className="stripe-sim-test-mode">TEST MODE</span>
-          </div>
-          
-          <div className="stripe-sim-body">
-            {paymentSuccess ? (
-              <div className="stripe-sim-success">
-                <div className="stripe-sim-success-circle">✓</div>
-                <h3>Payment Successful!</h3>
-                <p>Simulating Stripe payment webhook to server...</p>
-                <p style={{ fontSize: '0.85rem', color: '#64748b' }}>Returning to portal shortly...</p>
-              </div>
-            ) : (
-              <div className="stripe-sim-grid">
-                <div>
-                  <h3 style={{ margin: '0 0 0.5rem 0', color: '#0f172a' }}>Pay Weeecycle Workshop</h3>
-                  <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#0f172a', marginBottom: '1.5rem' }}>
-                    ${payTotals.total.toFixed(2)}
-                  </div>
-                  
-                  <form onSubmit={handleSimulatePayment}>
-                    <div className="stripe-sim-group">
-                      <label>Email Address</label>
-                      <input type="email" value={customerToPay?.email || ''} readOnly style={{ background: '#f8fafc', color: '#64748b' }} />
-                    </div>
-                    
-                    <div className="stripe-sim-group" style={{ marginTop: '1rem' }}>
-                      <label>Card Information</label>
-                      <input type="text" placeholder="4242 4242 4242 4242" defaultValue="4242 4242 4242 4242" required style={{ letterSpacing: '1px' }} />
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '0.5rem' }}>
-                        <input type="text" placeholder="MM / YY" defaultValue="12 / 29" required />
-                        <input type="text" placeholder="CVC" defaultValue="123" required />
-                      </div>
-                    </div>
-
-                    <div className="stripe-sim-group" style={{ marginTop: '1rem' }}>
-                      <label>Name on Card</label>
-                      <input type="text" placeholder="Cardholder Name" defaultValue={customerToPay ? `${customerToPay.firstName} ${customerToPay.lastName}` : ''} required />
-                    </div>
-
-                    <button type="submit" className="stripe-sim-pay-btn" disabled={paymentSimulating}>
-                      {paymentSimulating ? 'Processing...' : `Pay $${payTotals.total.toFixed(2)}`}
-                    </button>
-                    
-                    <button type="button" className="stripe-sim-cancel-btn" onClick={() => {
-                      const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-                      window.history.pushState({ path: newUrl }, '', newUrl);
-                      setStripeInvoiceIdToPay(null);
-                    }}>
-                      Cancel
-                    </button>
-                  </form>
-                </div>
-                
-                <div className="stripe-sim-summary-col">
-                  <h4 style={{ margin: '0 0 1rem 0', color: '#475569', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Order Summary</h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {(invoiceToPay.items || []).map((item, idx) => (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#334155' }}>
-                        <span>{item.description} (x{item.quantity})</span>
-                        <span>${((item.quantity || 1) * (item.price || 0)).toFixed(2)}</span>
-                      </div>
-                    ))}
-                    
-                    <div style={{ borderTop: '1px solid #e2e8f0', marginTop: '1rem', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#64748b' }}>
-                        <span>Subtotal:</span>
-                        <span>${payTotals.subtotal.toFixed(2)}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#64748b' }}>
-                        <span>KY Sales Tax (6%):</span>
-                        <span>${payTotals.tax.toFixed(2)}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', fontWeight: 'bold', color: '#0f172a', borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem' }}>
-                        <span>Total:</span>
-                        <span>${payTotals.total.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const totals = calculateTotals(items);
 
@@ -441,35 +274,16 @@ export default function InvoicesCMS() {
                         <button className="btn btn-sm btn-icon" onClick={() => openEditModal(inv)} title="Edit">
                           ✏️
                         </button>
-                        {inv.type === 'invoice' && (
-                          <>
-                            {!inv.stripeInvoiceId ? (
-                              <button 
-                                className="btn btn-sm btn-accent" 
-                                onClick={() => handleSendStripe(inv)} 
-                                disabled={sendingStripeId === inv.id}
-                                style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                              >
-                                {sendingStripeId === inv.id ? '⏳ Sending...' : '💳 Send Stripe'}
-                              </button>
-                            ) : (
-                              inv.status !== 'Paid' ? (
-                                <a 
-                                  className="btn btn-sm btn-success" 
-                                  href={inv.hostedInvoiceUrl} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                                >
-                                  💳 Pay Online
-                                </a>
-                              ) : (
-                                <span style={{ color: 'var(--success-color, #10b981)', fontSize: '0.8rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                                  ✓ Paid
-                                </span>
-                              )
-                            )}
-                          </>
+                        {inv.type === 'invoice' && inv.status !== 'Paid' && (
+                          <a 
+                            className="btn btn-sm btn-accent" 
+                            href="https://my.found.com/business/business_v391kiTbrTNb/invoices/list" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                          >
+                            💳 Pay with Found
+                          </a>
                         )}
                         <button className="btn btn-sm btn-danger" onClick={() => handleDelete(inv.id, inv.type)} title="Delete">
                           🗑️
@@ -748,11 +562,11 @@ export default function InvoicesCMS() {
                         </p>
                       </>
                     )}
-                    {activePrintDoc.stripeInvoiceId && activePrintDoc.status !== 'Paid' && (
+                    {activePrintDoc.status !== 'Paid' && (
                       <div className="print-hide" style={{ marginTop: '1.5rem', padding: '1rem', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0', display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
-                        <span style={{ color: '#166534', fontWeight: 'bold', fontSize: '0.9rem' }}>Online Payment Available:</span>
-                        <a href={activePrintDoc.hostedInvoiceUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-primary" style={{ textDecoration: 'none', background: '#16a34a', color: '#ffffff', border: 'none' }}>
-                          💳 Pay Invoice Online
+                        <span style={{ color: '#166534', fontWeight: 'bold', fontSize: '0.9rem' }}>Pay Invoice Online:</span>
+                        <a href="https://my.found.com/business/business_v391kiTbrTNb/invoices/list" target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-primary" style={{ textDecoration: 'none', background: '#16a34a', color: '#ffffff', border: 'none' }}>
+                          💳 Pay with Found
                         </a>
                       </div>
                     )}
