@@ -303,16 +303,19 @@ export async function syncWorkshopData() {
     const custRes = await fetch(`${API_BASE}/customers`, { headers: getAuthHeaders() });
     if (custRes.ok) {
       const customers = await custRes.json();
+      await db.customers.clear();
       await db.customers.bulkPut(customers);
     }
     const jobRes = await fetch(`${API_BASE}/jobs`, { headers: getAuthHeaders() });
     if (jobRes.ok) {
       const jobs = await jobRes.json();
+      await db.jobs.clear();
       await db.jobs.bulkPut(jobs);
     }
     const invRes = await fetch(`${API_BASE}/invoices`, { headers: getAuthHeaders() });
     if (invRes.ok) {
       const invoices = await invRes.json();
+      await db.invoices.clear();
       await db.invoices.bulkPut(invoices);
     }
   } catch (err) {
