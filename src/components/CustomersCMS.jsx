@@ -23,6 +23,8 @@ export default function CustomersCMS({ onNavigateToBoard }) {
   const [state, setState] = useState('CA');
   const [zipCode, setZipCode] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+
 
   // Job modal state
   const [showJobModal, setShowJobModal] = useState(false);
@@ -43,7 +45,7 @@ export default function CustomersCMS({ onNavigateToBoard }) {
   const openAddModal = () => {
     setEditCustId(null);
     setFirstName(''); setLastName(''); setAddress('');
-    setCity(''); setState('CA'); setZipCode(''); setPhone('');
+    setCity(''); setState('CA'); setZipCode(''); setPhone(''); setEmail('');
     setShowCustModal(true);
   };
 
@@ -56,8 +58,10 @@ export default function CustomersCMS({ onNavigateToBoard }) {
     setState(cust.state || 'CA');
     setZipCode(cust.zipCode || '');
     setPhone(cust.phone || '');
+    setEmail(cust.email || '');
     setShowCustModal(true);
   };
+
 
   const handleCustSubmit = async (e) => {
     e.preventDefault();
@@ -70,7 +74,8 @@ export default function CustomersCMS({ onNavigateToBoard }) {
       city: city.trim(),
       state,
       zipCode: zipCode.trim(),
-      phone: phone.trim()
+      phone: phone.trim(),
+      email: email.trim()
     };
 
     if (editCustId) {
@@ -80,6 +85,7 @@ export default function CustomersCMS({ onNavigateToBoard }) {
     }
     setShowCustModal(false);
   };
+
 
   const handleDeleteCust = async (id, name) => {
     if (window.confirm(`Are you sure you want to delete ${name}? All associated service jobs will also be deleted.`)) {
@@ -163,6 +169,7 @@ export default function CustomersCMS({ onNavigateToBoard }) {
                   </div>
                 </div>
                 {cust.phone && <p style={{ margin: '0 0 0.4rem 0', color: 'var(--brand-primary)', fontWeight: 'bold' }}>📞 {cust.phone}</p>}
+                {cust.email && <p style={{ margin: '0 0 0.4rem 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>✉️ {cust.email}</p>}
                 {(cust.address || cust.city || cust.state) && (
                   <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.4' }}>
                     📍 {cust.address && `${cust.address}, `}{cust.city && `${cust.city}, `}{cust.state} {cust.zipCode}
@@ -195,10 +202,17 @@ export default function CustomersCMS({ onNavigateToBoard }) {
                   <input value={lastName} onChange={e => setLastName(e.target.value)} required />
                 </div>
               </div>
-              <div className="input-group">
-                <label>Phone Number</label>
-                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(555) 000-0000" />
+               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="input-group">
+                  <label>Phone Number</label>
+                  <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(555) 000-0000" />
+                </div>
+                <div className="input-group">
+                  <label>Email Address</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="customer@example.com" />
+                </div>
               </div>
+
               <div className="input-group">
                 <label>Address</label>
                 <input value={address} onChange={e => setAddress(e.target.value)} placeholder="123 Main St" />

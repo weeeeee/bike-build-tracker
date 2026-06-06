@@ -1346,3 +1346,180 @@ label {
   }
 }
 
+/* Stripe payment simulator styles */
+.stripe-sim-overlay {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 85vh;
+  padding: 2rem;
+  background: radial-gradient(circle at 15% 15%, #635bff 0%, #1e1b4b 100%);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.stripe-sim-card {
+  background: #ffffff;
+  color: #1e293b;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 800px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.stripe-sim-header {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 1.25rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stripe-sim-header span:first-child {
+  color: #635bff;
+  font-size: 1.4rem;
+  letter-spacing: -0.5px;
+}
+
+.stripe-sim-test-mode {
+  background: #ffe4e6;
+  color: #e11d48;
+  font-size: 0.75rem;
+  font-weight: bold;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+
+.stripe-sim-body {
+  padding: 2.5rem 2rem;
+}
+
+.stripe-sim-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 2.5rem;
+}
+
+@media (max-width: 768px) {
+  .stripe-sim-grid {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+  .stripe-sim-summary-col {
+    border-left: none !important;
+    border-top: 1px solid #e2e8f0;
+    padding-left: 0 !important;
+    padding-top: 2rem;
+  }
+}
+
+.stripe-sim-summary-col {
+  border-left: 1px solid #e2e8f0;
+  padding-left: 2.5rem;
+}
+
+.stripe-sim-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.stripe-sim-group label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.stripe-sim-group input {
+  padding: 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  color: #1e293b !important;
+  background: #ffffff !important;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
+
+.stripe-sim-group input:focus {
+  outline: none;
+  border-color: #635bff;
+  box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.15);
+}
+
+.stripe-sim-pay-btn {
+  background: #635bff;
+  color: #ffffff;
+  font-weight: 600;
+  padding: 0.85rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  font-size: 1rem;
+  margin-top: 1.5rem;
+  transition: background 0.2s;
+}
+
+.stripe-sim-pay-btn:hover {
+  background: #4f46e5;
+}
+
+.stripe-sim-pay-btn:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.stripe-sim-cancel-btn {
+  background: transparent;
+  color: #64748b;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  font-size: 0.9rem;
+  margin-top: 0.75rem;
+  font-weight: 500;
+}
+
+.stripe-sim-cancel-btn:hover {
+  color: #1e293b;
+}
+
+.stripe-sim-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 0;
+  text-align: center;
+}
+
+.stripe-sim-success-circle {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #d1fae5;
+  color: #059669;
+  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  margin-bottom: 1.5rem;
+  animation: scaleIn 0.3s ease-out;
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+

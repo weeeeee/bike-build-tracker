@@ -135,6 +135,19 @@ db.version(8).stores({
   invoices: '++id, customerId, type, status, issueDate, dueDate, createdAt, updatedAt',
 });
 
+// v9: adds email/stripe fields to customers, and stripe fields to invoices
+db.version(9).stores({
+  builds: '++id, name, createdAt, updatedAt',
+  components: '++id, buildId, type, status',
+  orders: '++id, buildId, componentType, status, orderDate',
+  extras: '++id, buildId, status',
+  geometry: '++id, &buildId',
+  customers: '++id, firstName, lastName, phone, email, stripeCustomerId, city, state',
+  jobs: '++id, customerId, title, stage, bikeModel, estimatedCost, notes, createdAt, updatedAt',
+  invoices: '++id, customerId, type, status, issueDate, dueDate, stripeInvoiceId, hostedInvoiceUrl, createdAt, updatedAt',
+});
+
+
 export async function saveGeometry(buildId, fields) {
   const existing = await db.geometry.where('buildId').equals(buildId).first();
   if (existing) {
@@ -436,3 +449,18 @@ export async function deleteInvoice(id) {
   } catch (err) { console.warn('Server sync failed', err); }
   return db.invoices.delete(id);
 }
+
+export async function sendStripeInvoice(id) {
+  const res = await fetch(`${API_BASE}/invoices/${id}/send-stripe`, {
+    method: 'POST',
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(errText || 'Failed to send Stripe invoice');
+  }
+  const data = await res.json();
+  await db.invoices.put(data.invoice);
+  return data;
+}
+
