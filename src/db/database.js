@@ -112,6 +112,29 @@ db.version(6).stores({
   geometry: '++id, &buildId',
 });
 
+// v7: adds customers CMS table and service jobs workflow table
+db.version(7).stores({
+  builds: '++id, name, createdAt, updatedAt',
+  components: '++id, buildId, type, status',
+  orders: '++id, buildId, componentType, status, orderDate',
+  extras: '++id, buildId, status',
+  geometry: '++id, &buildId',
+  customers: '++id, firstName, lastName, phone, city, state',
+  jobs: '++id, customerId, title, stage, bikeModel, estimatedCost, notes, createdAt, updatedAt',
+});
+
+// v8: adds invoices table for quotes and invoices
+db.version(8).stores({
+  builds: '++id, name, createdAt, updatedAt',
+  components: '++id, buildId, type, status',
+  orders: '++id, buildId, componentType, status, orderDate',
+  extras: '++id, buildId, status',
+  geometry: '++id, &buildId',
+  customers: '++id, firstName, lastName, phone, city, state',
+  jobs: '++id, customerId, title, stage, bikeModel, estimatedCost, notes, createdAt, updatedAt',
+  invoices: '++id, customerId, type, status, issueDate, dueDate, createdAt, updatedAt',
+});
+
 export async function saveGeometry(buildId, fields) {
   const existing = await db.geometry.where('buildId').equals(buildId).first();
   if (existing) {
@@ -200,4 +223,216 @@ export function getTotalPrice(components, extras = []) {
     return sum + (parseFloat(e.price) || 0) * qty;
   }, 0);
   return compTotal + extrasTotal;
+}
+
+export async function exportBackup() {
+  const builds = await db.builds.toArray();
+  const components = await db.components.toArray();
+  const orders = await db.orders.toArray();
+  const extras = await db.extras.toArray();
+  const geometry = await db.geometry.toArray();
+  const customers = await db.customers.toArray();
+  const jobs = await db.jobs.toArray();
+
+  const data = {
+    version: db.verno,
+    timestamp: new Date().toISOString(),
+    builds,
+    components,
+    orders,
+    extras,
+    geometry,
+    customers,
+    jobs,
+  };
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `weeecycle-builds-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function importBackup(file) {
+  const text = await file.text();
+  const data = JSON.parse(text);
+
+  if (!data.builds || !data.components) {
+    throw new Error('Invalid backup file format.');
+  }
+
+  await db.transaction('rw', db.builds, db.components, db.orders, db.extras, db.geometry, db.customers, db.jobs, async () => {
+    await db.builds.bulkPut(data.builds);
+    await db.components.bulkPut(data.components);
+    if (data.orders) await db.orders.bulkPut(data.orders);
+    if (data.extras) await db.extras.bulkPut(data.extras);
+    if (data.geometry) await db.geometry.bulkPut(data.geometry);
+    if (data.customers) await db.customers.bulkPut(data.customers);
+    if (data.jobs) await db.jobs.bulkPut(data.jobs);
+  });
+}
+
+// Workshop Server Synchronization
+const API_BASE = 'http://localhost:3000/api';
+
+function getAuthHeaders() {
+  const token = sessionStorage.getItem('mechanic_token') || '';
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  };
+}
+
+export async function syncWorkshopData() {
+  try {
+    const custRes = await fetch(`${API_BASE}/customers`, { headers: getAuthHeaders() });
+    if (custRes.ok) {
+      const customers = await custRes.json();
+      await db.customers.bulkPut(customers);
+    }
+    const jobRes = await fetch(`${API_BASE}/jobs`, { headers: getAuthHeaders() });
+    if (jobRes.ok) {
+      const jobs = await jobRes.json();
+      await db.jobs.bulkPut(jobs);
+    }
+    const invRes = await fetch(`${API_BASE}/invoices`, { headers: getAuthHeaders() });
+    if (invRes.ok) {
+      const invoices = await invRes.json();
+      await db.invoices.bulkPut(invoices);
+    }
+  } catch (err) {
+    console.warn('Offline or unable to reach workshop server. Using local Dexie cache.', err);
+  }
+}
+
+// Customers CRUD helpers
+export async function createCustomer(fields) {
+  try {
+    const res = await fetch(`${API_BASE}/customers`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(fields)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      await db.customers.put(data);
+      return data.id;
+    }
+  } catch (err) { console.warn('Server sync failed, saving locally', err); }
+  return db.customers.add({ ...fields, createdAt: new Date().toISOString() });
+}
+
+export async function updateCustomer(id, fields) {
+  try {
+    await fetch(`${API_BASE}/customers/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(fields)
+    });
+  } catch (err) { console.warn('Server sync failed', err); }
+  return db.customers.update(id, { ...fields, updatedAt: new Date().toISOString() });
+}
+
+export async function deleteCustomer(id) {
+  try {
+    await fetch(`${API_BASE}/customers/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+  } catch (err) { console.warn('Server sync failed', err); }
+  return db.transaction('rw', db.customers, db.jobs, async () => {
+    await db.jobs.where('customerId').equals(id).delete();
+    await db.customers.delete(id);
+  });
+}
+
+// Service Jobs CRUD helpers
+export async function createJob(fields) {
+  try {
+    const res = await fetch(`${API_BASE}/jobs`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(fields)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      await db.jobs.put(data);
+      return data.id;
+    }
+  } catch (err) { console.warn('Server sync failed, saving locally', err); }
+  const now = new Date().toISOString();
+  return db.jobs.add({ ...fields, createdAt: now, updatedAt: now });
+}
+
+export async function updateJobStage(id, stage) {
+  try {
+    await fetch(`${API_BASE}/jobs/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ stage })
+    });
+  } catch (err) { console.warn('Server sync failed', err); }
+  return db.jobs.update(id, { stage, updatedAt: new Date().toISOString() });
+}
+
+export async function updateJob(id, fields) {
+  try {
+    await fetch(`${API_BASE}/jobs/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(fields)
+    });
+  } catch (err) { console.warn('Server sync failed', err); }
+  return db.jobs.update(id, { ...fields, updatedAt: new Date().toISOString() });
+}
+
+export async function deleteJob(id) {
+  try {
+    await fetch(`${API_BASE}/jobs/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+  } catch (err) { console.warn('Server sync failed', err); }
+  return db.jobs.delete(id);
+}
+
+// Invoices CRUD helpers
+export async function createInvoice(fields) {
+  try {
+    const res = await fetch(`${API_BASE}/invoices`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(fields)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      await db.invoices.put(data);
+      return data.id;
+    }
+  } catch (err) { console.warn('Server sync failed, saving locally', err); }
+  const now = new Date().toISOString();
+  return db.invoices.add({ ...fields, createdAt: now, updatedAt: now });
+}
+
+export async function updateInvoice(id, fields) {
+  try {
+    await fetch(`${API_BASE}/invoices/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(fields)
+    });
+  } catch (err) { console.warn('Server sync failed', err); }
+  return db.invoices.update(id, { ...fields, updatedAt: new Date().toISOString() });
+}
+
+export async function deleteInvoice(id) {
+  try {
+    await fetch(`${API_BASE}/invoices/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+  } catch (err) { console.warn('Server sync failed', err); }
+  return db.invoices.delete(id);
 }

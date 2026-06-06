@@ -343,6 +343,52 @@ label {
   box-shadow: var(--shadow);
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  backdrop-filter: blur(8px);
+  padding: 1rem;
+}
+.modal-content {
+  background: var(--bg-card);
+  border: 1px solid var(--primary);
+  border-radius: 1.25rem;
+  width: 100%;
+  max-width: 550px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  overflow: hidden;
+  animation: modalScaleUp 0.25s ease-out;
+}
+@keyframes modalScaleUp {
+  from { transform: scale(0.95); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  background: rgba(15, 23, 42, 0.5);
+  border-bottom: 1px solid var(--border);
+}
+.modal-header h3 { margin: 0; font-size: 1.2rem; color: var(--text-main); }
+.modal-body {
+  padding: 1.5rem;
+}
+.modal-footer {
+  padding: 1.25rem 1.5rem;
+  background: rgba(15, 23, 42, 0.3);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
 /* ═══════════════════════════════════════════
    BUILD DETAIL
 ═══════════════════════════════════════════ */
@@ -1197,3 +1243,106 @@ label {
   color: var(--text-muted);
   text-align: center;
 }
+
+/* ═══════════════════════════════════════════
+   WORKSHOP KANBAN SERVICE BOARD & CMS
+═══════════════════════════════════════════ */
+.kanban-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+.kanban-wrapper::-webkit-scrollbar-track {
+  background: var(--bg-dark);
+  border-radius: 4px;
+}
+.kanban-wrapper::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+.kanban-wrapper::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+.kanban-column {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.kanban-column:hover {
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+
+.kanban-card {
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.kanban-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+}
+
+.cms-container, .board-container {
+  padding: 1.5rem;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.btn-icon {
+  transition: transform 0.15s ease;
+}
+.btn-icon:hover {
+  transform: scale(1.2);
+}
+
+/* ═══════════════════════════════════════════
+   PRINT STYLES FOR INVOICES
+   ═══════════════════════════════════════════ */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #1e293b !important;
+  }
+  
+  /* Hide all app layouts & UI controls */
+  .app-header, 
+  .app-footer, 
+  .dash-header, 
+  .invoices-area > *:not(.print-modal-backdrop),
+  .print-hide, 
+  .modal-header,
+  .modal-footer {
+    display: none !important;
+  }
+
+  /* Make print modal overlay fill page */
+  .print-modal-backdrop {
+    position: absolute !important;
+    inset: 0 !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    backdrop-filter: none !important;
+    z-index: auto !important;
+  }
+
+  .print-modal-content {
+    background: #ffffff !important;
+    color: #1e293b !important;
+    border: none !important;
+    box-shadow: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #invoice-print-area {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    color: #1e293b !important;
+    width: 100% !important;
+  }
+
+  /* High contrast typography for print */
+  h1, h2, h3, h4, td, span, p, tr, th {
+    color: #000000 !important;
+  }
+}
+

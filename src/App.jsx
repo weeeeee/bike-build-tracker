@@ -1,10 +1,24 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 import Dashboard from './components/Dashboard';
 import BuildDetail from './components/BuildDetail';
+import CustomersCMS from './components/CustomersCMS';
+import ServiceBoard from './components/ServiceBoard';
+import InvoicesCMS from './components/InvoicesCMS';
+import { syncWorkshopData } from './db/database';
 
 export default function App() {
-  const [view, setView] = useState('dashboard');
+  const token = sessionStorage.getItem('mechanic_token');
+  if (!token) {
+    window.location.href = 'https://weeecycle.net/mechanic-login.html';
+    return null;
+  }
+
+  useEffect(() => {
+    syncWorkshopData();
+  }, []);
+
+  const [view, setView] = useState('dashboard'); // 'dashboard', 'build', 'customers', 'service-board', 'invoices'
   const [buildId, setBuildId] = useState(null);
 
   const openBuild = (id) => {
@@ -22,16 +36,30 @@ export default function App() {
       <header className="app-header">
         <div className="header-brand" onClick={goBack} style={{ cursor: 'pointer' }}>
           <span className="brand-icon">🚲</span>
-          <span className="brand-name">BikeBuild Tracker</span>
+          <span className="brand-name">Shop Mechanic Portal</span>
         </div>
-        <nav className="header-nav">
+        <nav className="header-nav" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           {view === 'build' ? (
             <button className="btn back-nav" onClick={goBack}>← All Builds</button>
           ) : (
-            <button
-              className={`btn nav-tab${view === 'dashboard' ? ' nav-tab-active' : ''}`}
-              onClick={goBack}
-            >Builds</button>
+            <>
+              <button
+                className={`btn nav-tab${view === 'dashboard' ? ' nav-tab-active' : ''}`}
+                onClick={() => { setView('dashboard'); setBuildId(null); }}
+              >🚲 Bike Builds</button>
+              <button
+                className={`btn nav-tab${view === 'customers' ? ' nav-tab-active' : ''}`}
+                onClick={() => { setView('customers'); setBuildId(null); }}
+              >👥 Customers CMS</button>
+              <button
+                className={`btn nav-tab${view === 'service-board' ? ' nav-tab-active' : ''}`}
+                onClick={() => { setView('service-board'); setBuildId(null); }}
+              >📋 Service Board</button>
+              <button
+                className={`btn nav-tab${view === 'invoices' ? ' nav-tab-active' : ''}`}
+                onClick={() => { setView('invoices'); setBuildId(null); }}
+              >📄 Quotes & Invoices</button>
+            </>
           )}
         </nav>
       </header>
@@ -43,10 +71,19 @@ export default function App() {
         {view === 'build' && buildId && (
           <BuildDetail buildId={buildId} onBack={goBack} />
         )}
+        {view === 'customers' && (
+          <CustomersCMS onNavigateToBoard={() => setView('service-board')} />
+        )}
+        {view === 'service-board' && (
+          <ServiceBoard />
+        )}
+        {view === 'invoices' && (
+          <InvoicesCMS />
+        )}
       </main>
 
       <footer className="app-footer">
-        BikeBuild Tracker — all data stored locally in your browser
+        Shop Mechanic Portal — all data securely encrypted & stored locally in your browser
       </footer>
     </div>
   );
