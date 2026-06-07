@@ -159,11 +159,37 @@ db.version(10).stores({
   invoices: '++id, customerId, type, status, issueDate, dueDate, stripeInvoiceId, hostedInvoiceUrl, createdAt, updatedAt',
 });
 
+// v11: adds manualPartsCosts table for manual bookkeeping cost entries
+db.version(11).stores({
+  builds: '++id, name, customerId, createdAt, updatedAt',
+  components: '++id, buildId, type, status',
+  orders: '++id, buildId, componentType, status, orderDate',
+  extras: '++id, buildId, status',
+  geometry: '++id, &buildId',
+  customers: '++id, firstName, lastName, phone, email, stripeCustomerId, city, state',
+  jobs: '++id, customerId, title, stage, bikeModel, estimatedCost, notes, createdAt, updatedAt',
+  invoices: '++id, customerId, type, status, issueDate, dueDate, stripeInvoiceId, hostedInvoiceUrl, createdAt, updatedAt',
+  manualPartsCosts: '++id, customerId, name, price, createdAt',
+});
+
 export async function associateCustomerToBuild(buildId, customerId) {
   return db.builds.update(buildId, {
     customerId: customerId ? parseInt(customerId) : null,
     updatedAt: new Date().toISOString()
   });
+}
+
+export async function addManualPartsCost(customerId, fields) {
+  return db.manualPartsCosts.add({
+    customerId: customerId ? parseInt(customerId) : null,
+    name: fields.name,
+    price: parseFloat(fields.price) || 0,
+    createdAt: new Date().toISOString()
+  });
+}
+
+export async function deleteManualPartsCost(id) {
+  return db.manualPartsCosts.delete(id);
 }
 
 
@@ -266,6 +292,7 @@ export async function exportBackup() {
   const geometry = await db.geometry.toArray();
   const customers = await db.customers.toArray();
   const jobs = await db.jobs.toArray();
+  const manualPartsCosts = await db.manualPartsCosts.toArray();
 
   const data = {
     version: db.verno,
@@ -277,6 +304,7 @@ export async function exportBackup() {
     geometry,
     customers,
     jobs,
+    manualPartsCosts,
   };
 
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -296,7 +324,7 @@ export async function importBackup(file) {
     throw new Error('Invalid backup file format.');
   }
 
-  await db.transaction('rw', db.builds, db.components, db.orders, db.extras, db.geometry, db.customers, db.jobs, async () => {
+  await db.transaction('rw', db.builds, db.components, db.orders, db.extras, db.geometry, db.customers, db.jobs, db.manualPartsCosts, async () => {
     await db.builds.bulkPut(data.builds);
     await db.components.bulkPut(data.components);
     if (data.orders) await db.orders.bulkPut(data.orders);
@@ -304,6 +332,7 @@ export async function importBackup(file) {
     if (data.geometry) await db.geometry.bulkPut(data.geometry);
     if (data.customers) await db.customers.bulkPut(data.customers);
     if (data.jobs) await db.jobs.bulkPut(data.jobs);
+    if (data.manualPartsCosts) await db.manualPartsCosts.bulkPut(data.manualPartsCosts);
   });
 }
 
