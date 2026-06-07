@@ -201,6 +201,7 @@ export default function BookkeepingCMS() {
     const billedLaborRevenue = billedItems.filter(i => !i.taxable).reduce((sum, i) => sum + i.total, 0);
     const totalInvoiceRevenue = billedItems.reduce((sum, i) => sum + i.total, 0);
     const unbilledLeakage = unmatchedParts.reduce((sum, p) => sum + p.price, 0);
+    const totalProfit = totalInvoiceRevenue - totalPartsCost;
 
     return {
       trackedParts,
@@ -215,7 +216,8 @@ export default function BookkeepingCMS() {
         partsMarginPercent,
         billedLaborRevenue,
         totalInvoiceRevenue,
-        unbilledLeakage
+        unbilledLeakage,
+        totalProfit
       }
     };
   };
@@ -357,48 +359,56 @@ export default function BookkeepingCMS() {
         recon && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             {/* Financial Health / Summary Metrics */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1.25rem' }}>
-              <div className="stat-chip" style={{ padding: '1.25rem', textAlign: 'left', background: 'var(--bg-card)' }}>
-                <span className="stat-lbl">Total Parts Cost</span>
-                <span className="stat-val" style={{ color: 'var(--text-main)', fontSize: '1.6rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem' }}>
+              <div className="stat-chip" style={{ padding: '1rem 0.75rem', textAlign: 'left', background: 'var(--bg-card)' }}>
+                <span className="stat-lbl" style={{ fontSize: '0.8rem' }}>Total Parts Cost</span>
+                <span className="stat-val" style={{ color: 'var(--text-main)', fontSize: '1.4rem' }}>
                   ${recon.metrics.totalPartsCost.toFixed(2)}
                 </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Linked builds + manual</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Linked builds + manual</span>
               </div>
 
-              <div className="stat-chip" style={{ padding: '1.25rem', textAlign: 'left', background: 'var(--bg-card)' }}>
-                <span className="stat-lbl">Billed Parts Rev</span>
-                <span className="stat-val" style={{ color: 'var(--primary)', fontSize: '1.6rem' }}>
+              <div className="stat-chip" style={{ padding: '1rem 0.75rem', textAlign: 'left', background: 'var(--bg-card)' }}>
+                <span className="stat-lbl" style={{ fontSize: '0.8rem' }}>Billed Parts Rev</span>
+                <span className="stat-val" style={{ color: 'var(--primary)', fontSize: '1.4rem' }}>
                   ${recon.metrics.billedPartsRevenue.toFixed(2)}
                 </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Taxable invoice items</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Taxable items</span>
               </div>
 
-              <div className="stat-chip" style={{ padding: '1.25rem', textAlign: 'left', background: 'var(--bg-card)' }}>
-                <span className="stat-lbl">Parts Profit</span>
-                <span className="stat-val" style={{ color: recon.metrics.partsProfit >= 0 ? 'var(--accent)' : 'var(--danger)', fontSize: '1.6rem' }}>
+              <div className="stat-chip" style={{ padding: '1rem 0.75rem', textAlign: 'left', background: 'var(--bg-card)' }}>
+                <span className="stat-lbl" style={{ fontSize: '0.8rem' }}>Parts Profit</span>
+                <span className="stat-val" style={{ color: recon.metrics.partsProfit >= 0 ? 'var(--accent)' : 'var(--danger)', fontSize: '1.4rem' }}>
                   ${recon.metrics.partsProfit.toFixed(2)}
                 </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  {recon.metrics.partsMarginPercent.toFixed(1)}% Markup margin
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  {recon.metrics.partsMarginPercent.toFixed(1)}% margin
                 </span>
               </div>
 
-              <div className="stat-chip" style={{ padding: '1.25rem', textAlign: 'left', background: 'var(--bg-card)' }}>
-                <span className="stat-lbl">Billed Labor Rev</span>
-                <span className="stat-val" style={{ color: '#fbbf24', fontSize: '1.6rem' }}>
+              <div className="stat-chip" style={{ padding: '1rem 0.75rem', textAlign: 'left', background: 'var(--bg-card)' }}>
+                <span className="stat-lbl" style={{ fontSize: '0.8rem' }}>Billed Labor Rev</span>
+                <span className="stat-val" style={{ color: '#fbbf24', fontSize: '1.4rem' }}>
                   ${recon.metrics.billedLaborRevenue.toFixed(2)}
                 </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Non-taxable labor items</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Non-taxable labor</span>
               </div>
 
-              <div className="stat-chip" style={{ padding: '1.25rem', textAlign: 'left', background: recon.metrics.unbilledLeakage > 0 ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-card)', border: recon.metrics.unbilledLeakage > 0 ? '1px solid var(--danger)' : '1px solid var(--border)' }}>
-                <span className="stat-lbl" style={{ color: recon.metrics.unbilledLeakage > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>Unbilled Leakage</span>
-                <span className="stat-val" style={{ color: recon.metrics.unbilledLeakage > 0 ? 'var(--danger)' : 'var(--text-muted)', fontSize: '1.6rem' }}>
+              <div className="stat-chip" style={{ padding: '1rem 0.75rem', textAlign: 'left', background: 'var(--bg-card)' }}>
+                <span className="stat-lbl" style={{ fontSize: '0.8rem' }}>Total Profit</span>
+                <span className="stat-val" style={{ color: recon.metrics.totalProfit >= 0 ? 'var(--accent)' : 'var(--danger)', fontSize: '1.4rem' }}>
+                  ${recon.metrics.totalProfit.toFixed(2)}
+                </span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Revenue - parts cost</span>
+              </div>
+
+              <div className="stat-chip" style={{ padding: '1rem 0.75rem', textAlign: 'left', background: recon.metrics.unbilledLeakage > 0 ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-card)', border: recon.metrics.unbilledLeakage > 0 ? '1px solid var(--danger)' : '1px solid var(--border)' }}>
+                <span className="stat-lbl" style={{ color: recon.metrics.unbilledLeakage > 0 ? 'var(--danger)' : 'var(--text-muted)', fontSize: '0.8rem' }}>Unbilled Leakage</span>
+                <span className="stat-val" style={{ color: recon.metrics.unbilledLeakage > 0 ? 'var(--danger)' : 'var(--text-muted)', fontSize: '1.4rem' }}>
                   ${recon.metrics.unbilledLeakage.toFixed(2)}
                 </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  {recon.unmatchedParts.length} parts not on invoices
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  {recon.unmatchedParts.length} parts unbilled
                 </span>
               </div>
             </div>
