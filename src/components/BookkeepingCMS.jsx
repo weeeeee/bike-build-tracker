@@ -202,7 +202,7 @@ export default function BookkeepingCMS() {
     const billedLaborRevenue = billedItems.filter(i => !i.taxable).reduce((sum, i) => sum + i.total, 0);
     const totalInvoiceRevenue = billedItems.reduce((sum, i) => sum + i.total, 0);
     const unbilledLeakage = unmatchedParts.reduce((sum, p) => sum + p.price, 0);
-    const totalProfit = billedLaborRevenue;
+    const totalProfit = billedLaborRevenue + partsProfit;
 
     return {
       trackedParts,
@@ -410,7 +410,7 @@ export default function BookkeepingCMS() {
                 <span className="stat-val" style={{ color: recon.metrics.totalProfit >= 0 ? 'var(--accent)' : 'var(--danger)', fontSize: '1.4rem' }}>
                   ${recon.metrics.totalProfit.toFixed(2)}
                 </span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Labor profit</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Labor + parts profit</span>
               </div>
             </div>
 
