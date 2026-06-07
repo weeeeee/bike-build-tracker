@@ -59,7 +59,7 @@ export default function BuildDetail({ buildId, onBack }) {
       };
 
       const token = sessionStorage.getItem('mechanic_token');
-      const res = await fetch('http://localhost:3000/api/send-build-pdf', {
+      const res = await fetch('https://weeecycle.net/api/send-build-pdf', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
