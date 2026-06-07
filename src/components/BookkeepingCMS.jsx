@@ -193,15 +193,16 @@ export default function BookkeepingCMS() {
     const unmatchedInvoiceItems = invoiceItemsCopy.filter(item => !item.matched);
 
     // 4. Calculate Summary Financials
-    const totalPartsCost = trackedParts.reduce((sum, p) => sum + p.price, 0);
+    const manualPartsCost = customerManualCosts.reduce((sum, m) => sum + m.price, 0);
     const billedPartsRevenue = billedItems.filter(i => i.taxable).reduce((sum, i) => sum + i.total, 0);
+    const totalPartsCost = billedPartsRevenue + manualPartsCost;
     const partsProfit = billedPartsRevenue - totalPartsCost;
     const partsMarginPercent = billedPartsRevenue > 0 ? (partsProfit / billedPartsRevenue) * 100 : 0;
     
     const billedLaborRevenue = billedItems.filter(i => !i.taxable).reduce((sum, i) => sum + i.total, 0);
     const totalInvoiceRevenue = billedItems.reduce((sum, i) => sum + i.total, 0);
     const unbilledLeakage = unmatchedParts.reduce((sum, p) => sum + p.price, 0);
-    const totalProfit = totalInvoiceRevenue - totalPartsCost;
+    const totalProfit = billedLaborRevenue;
 
     return {
       trackedParts,
@@ -365,7 +366,7 @@ export default function BookkeepingCMS() {
                 <span className="stat-val" style={{ color: 'var(--text-main)', fontSize: '1.4rem' }}>
                   ${recon.metrics.totalPartsCost.toFixed(2)}
                 </span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Linked builds + manual</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Taxable items + manual</span>
               </div>
 
               <div className="stat-chip" style={{ padding: '1rem 0.75rem', textAlign: 'left', background: 'var(--bg-card)' }}>
@@ -394,14 +395,6 @@ export default function BookkeepingCMS() {
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Non-taxable labor</span>
               </div>
 
-              <div className="stat-chip" style={{ padding: '1rem 0.75rem', textAlign: 'left', background: 'var(--bg-card)' }}>
-                <span className="stat-lbl" style={{ fontSize: '0.8rem' }}>Total Profit</span>
-                <span className="stat-val" style={{ color: recon.metrics.totalProfit >= 0 ? 'var(--accent)' : 'var(--danger)', fontSize: '1.4rem' }}>
-                  ${recon.metrics.totalProfit.toFixed(2)}
-                </span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Revenue - parts cost</span>
-              </div>
-
               <div className="stat-chip" style={{ padding: '1rem 0.75rem', textAlign: 'left', background: recon.metrics.unbilledLeakage > 0 ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-card)', border: recon.metrics.unbilledLeakage > 0 ? '1px solid var(--danger)' : '1px solid var(--border)' }}>
                 <span className="stat-lbl" style={{ color: recon.metrics.unbilledLeakage > 0 ? 'var(--danger)' : 'var(--text-muted)', fontSize: '0.8rem' }}>Unbilled Leakage</span>
                 <span className="stat-val" style={{ color: recon.metrics.unbilledLeakage > 0 ? 'var(--danger)' : 'var(--text-muted)', fontSize: '1.4rem' }}>
@@ -410,6 +403,14 @@ export default function BookkeepingCMS() {
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                   {recon.unmatchedParts.length} parts unbilled
                 </span>
+              </div>
+
+              <div className="stat-chip" style={{ padding: '1rem 0.75rem', textAlign: 'left', background: 'var(--bg-card)' }}>
+                <span className="stat-lbl" style={{ fontSize: '0.8rem' }}>Total Profit</span>
+                <span className="stat-val" style={{ color: recon.metrics.totalProfit >= 0 ? 'var(--accent)' : 'var(--danger)', fontSize: '1.4rem' }}>
+                  ${recon.metrics.totalProfit.toFixed(2)}
+                </span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Labor profit</span>
               </div>
             </div>
 
