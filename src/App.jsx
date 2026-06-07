@@ -35,9 +35,26 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <div className="header-brand" onClick={goBack} style={{ cursor: 'pointer' }}>
-          <span className="brand-icon">🚲</span>
-          <span className="brand-name">Shop Mechanic Portal</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+          <div className="header-brand" onClick={goBack} style={{ cursor: 'pointer' }}>
+            <span className="brand-icon">🚲</span>
+            <span className="brand-name">Shop Mechanic Portal</span>
+          </div>
+          <a 
+            href="https://weeecycle.net" 
+            className="btn btn-sm" 
+            style={{ 
+              textDecoration: 'none', 
+              fontSize: '0.8rem', 
+              padding: '0.4rem 0.8rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.3rem',
+              borderRadius: '6px'
+            }}
+          >
+            🏠 Back to Homepage
+          </a>
         </div>
         <nav className="header-nav" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           {view === 'build' ? (
