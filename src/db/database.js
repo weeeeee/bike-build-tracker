@@ -337,7 +337,7 @@ export async function importBackup(file) {
 }
 
 // Workshop Server Synchronization
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = '/api';
 
 function getAuthHeaders() {
   const token = sessionStorage.getItem('mechanic_token') || '';
