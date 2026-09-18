@@ -207,7 +207,9 @@ export default function BookkeepingCMS() {
     const unbilledLeakage = unmatchedParts.reduce((sum, p) => sum + p.price, 0);
     const customerReceipts = allReceipts.filter(r => r.customerId === parseInt(selectedCustomerId));
     const receiptsCost = customerReceipts.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
-    const totalProfit = billedLaborRevenue + partsProfit - receiptsCost;
+    const discountsCost = customerInvoices.reduce((sum, inv) => sum + (parseFloat(inv.discount) || 0), 0);
+    const discountedInvoices = customerInvoices.filter(inv => (parseFloat(inv.discount) || 0) > 0).length;
+    const totalProfit = billedLaborRevenue + partsProfit - receiptsCost - discountsCost;
 
     return {
       trackedParts,
@@ -225,6 +227,8 @@ export default function BookkeepingCMS() {
         unbilledLeakage,
         receiptsCost,
         receiptsCount: customerReceipts.length,
+        discountsCost,
+        discountedInvoices,
         totalProfit
       }
     };
@@ -253,7 +257,8 @@ export default function BookkeepingCMS() {
         .reduce((sum, m) => sum + (parseFloat(m.price) || 0), 0);
       const billedParts = billedItems.filter(i => i.taxable).reduce((sum, i) => sum + i.total, 0);
       const billedLabor = billedItems.filter(i => !i.taxable).reduce((sum, i) => sum + i.total, 0);
-      return total + billedLabor + (billedParts - (billedParts + manualCost));
+      const discounts = custInvoices.reduce((sum, inv) => sum + (parseFloat(inv.discount) || 0), 0);
+      return total + billedLabor + (billedParts - (billedParts + manualCost)) - discounts;
     }, 0);
   };
 
@@ -292,7 +297,7 @@ export default function BookkeepingCMS() {
 
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <button className={`btn nav-tab${bkTab === 'reconciliation' ? ' nav-tab-active' : ''}`} onClick={() => setBkTab('reconciliation')}>📊 Reconciliation</button>
-        <button className={`btn nav-tab${bkTab === 'receipts' ? ' nav-tab-active' : ''}`} onClick={() => setBkTab('receipts')}>🧾 Receipts</button>
+        <button className={`btn nav-tab${bkTab === 'receipts' ? ' nav-tab-active' : ''}`} onClick={() => setBkTab('receipts')}>🛠️ Workshop Expenses</button>
       </div>
 
       {bkTab === 'receipts' ? (
@@ -495,11 +500,21 @@ export default function BookkeepingCMS() {
               </div>
 
               <div className="stat-chip" style={{ padding: '1rem 0.75rem', textAlign: 'left', background: 'var(--bg-card)' }}>
+                <span className="stat-lbl" style={{ fontSize: '0.8rem' }}>Discounts</span>
+                <span className="stat-val" style={{ color: recon.metrics.discountsCost > 0 ? 'var(--danger)' : 'var(--text-muted)', fontSize: '1.4rem' }}>
+                  -${recon.metrics.discountsCost.toFixed(2)}
+                </span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  {recon.metrics.discountedInvoices} discounted invoice{recon.metrics.discountedInvoices === 1 ? '' : 's'}
+                </span>
+              </div>
+
+              <div className="stat-chip" style={{ padding: '1rem 0.75rem', textAlign: 'left', background: 'var(--bg-card)' }}>
                 <span className="stat-lbl" style={{ fontSize: '0.8rem' }}>Total Profit</span>
                 <span className="stat-val" style={{ color: recon.metrics.totalProfit >= 0 ? 'var(--accent)' : 'var(--danger)', fontSize: '1.4rem' }}>
                   ${recon.metrics.totalProfit.toFixed(2)}
                 </span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Labor + parts profit − receipts</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Labor + parts profit − receipts − discounts</span>
               </div>
             </div>
 

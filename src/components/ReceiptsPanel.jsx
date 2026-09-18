@@ -3,6 +3,16 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, addReceipt, updateReceipt, deleteReceipt, openReceiptFile } from '../db/database';
 
 const CATEGORIES = ['Parts', 'Tools & Equipment', 'Shop Supplies', 'Shipping', 'Other'];
+const SHOP_ITEM_CATEGORIES = ['Tools & Equipment', 'Shop Supplies'];
+
+// "Workshop" purchases are the ones with no customer attached (in-house stock, tools, materials).
+const VIEWS = [
+  { key: 'all', label: 'All purchases', test: () => true },
+  { key: 'workshop', label: 'Workshop expenses', test: r => !r.customerId },
+  { key: 'parts', label: 'Workshop parts stock', test: r => !r.customerId && r.category === 'Parts' },
+  { key: 'tools', label: 'Workshop tools & materials', test: r => !r.customerId && SHOP_ITEM_CATEGORIES.includes(r.category) },
+  { key: 'customer', label: 'Customer jobs', test: r => !!r.customerId },
+];
 const MAX_PDF_BYTES = 4 * 1024 * 1024;
 const MAX_IMAGE_DIM = 1800;
 const THUMB_DIM = 180;
@@ -65,6 +75,7 @@ export default function ReceiptsPanel({ customers }) {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [customerFilter, setCustomerFilter] = useState('all');
+  const [viewFilter, setViewFilter] = useState('all');
 
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -80,12 +91,19 @@ export default function ReceiptsPanel({ customers }) {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const inView = VIEWS.find(v => v.key === viewFilter).test;
     return receipts
+      .filter(inView)
       .filter(r => categoryFilter === 'all' || r.category === categoryFilter)
       .filter(r => customerFilter === 'all' || (customerFilter === 'general' ? !r.customerId : String(r.customerId) === customerFilter))
       .filter(r => !q || `${r.vendor} ${r.description} ${r.fileName} ${customerMap[r.customerId] || ''}`.toLowerCase().includes(q))
       .sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id - a.id);
-  }, [receipts, search, categoryFilter, customerFilter, customerMap]);
+  }, [receipts, search, viewFilter, categoryFilter, customerFilter, customerMap]);
+
+  const viewStats = useMemo(() => VIEWS.map(v => {
+    const rows = receipts.filter(v.test);
+    return { ...v, count: rows.length, total: rows.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0) };
+  }), [receipts]);
 
   const total = filtered.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
   const setField = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
@@ -133,12 +151,25 @@ export default function ReceiptsPanel({ customers }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
         <div>
-          <h3 style={{ margin: 0 }}>🧾 Receipts</h3>
+          <h3 style={{ margin: 0 }}>🛠️ Workshop Expenses</h3>
           <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            Attach photos or PDFs of purchase receipts and keep them organized for your books.
+            In-house purchases (parts stock, tools, materials) and customer job purchases, each with its receipt attached.
           </p>
         </div>
         <button className="btn btn-primary" onClick={openAdd}>+ Add Receipt</button>
+      </div>
+
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+        {viewStats.map(v => (
+          <button
+            key={v.key} type="button"
+            className={`btn nav-tab${viewFilter === v.key ? ' nav-tab-active' : ''}`}
+            onClick={() => setViewFilter(v.key)}
+            title={`${v.count} receipt${v.count === 1 ? '' : 's'} · ${money(v.total)}`}
+          >
+            {v.label} <span style={{ opacity: 0.75 }}>({v.count} · {money(v.total)})</span>
+          </button>
+        ))}
       </div>
 
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1.25rem', background: 'var(--bg-card)', padding: '0.75rem 1.25rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
@@ -152,7 +183,7 @@ export default function ReceiptsPanel({ customers }) {
         </select>
         <select value={customerFilter} onChange={e => setCustomerFilter(e.target.value)} style={{ width: 'auto', padding: '0.4rem 1.5rem 0.4rem 0.6rem' }}>
           <option value="all">All Customers</option>
-          <option value="general">Shop / General</option>
+          <option value="general">Workshop (no customer)</option>
           {customers.map(c => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}
         </select>
         <div style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
@@ -199,7 +230,7 @@ export default function ReceiptsPanel({ customers }) {
                   </td>
                   <td style={{ padding: '0.6rem 1rem' }}><span className="status-badge status-ordered">{r.category}</span></td>
                   <td style={{ padding: '0.6rem 1rem', color: r.customerId ? 'var(--text-main)' : 'var(--text-muted)' }}>
-                    {r.customerId ? (customerMap[r.customerId] || 'Unknown customer') : 'Shop / General'}
+                    {r.customerId ? (customerMap[r.customerId] || 'Unknown customer') : 'Workshop'}
                   </td>
                   <td style={{ padding: '0.6rem 1rem', textAlign: 'right', fontWeight: 'bold' }}>{money(r.amount)}</td>
                   <td style={{ padding: '0.6rem 1rem' }}>
@@ -255,7 +286,7 @@ export default function ReceiptsPanel({ customers }) {
                 <div className="input-group">
                   <label>Customer (optional)</label>
                   <select value={form.customerId} onChange={e => setField('customerId', e.target.value)}>
-                    <option value="">Shop / General expense</option>
+                    <option value="">Workshop expense (no customer)</option>
                     {customers.map(c => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}{c.phone ? ` (${c.phone})` : ''}</option>)}
                   </select>
                 </div>

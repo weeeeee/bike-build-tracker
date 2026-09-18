@@ -17,6 +17,7 @@ export default function InvoicesCMS() {
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [discount, setDiscount] = useState('');
   const [items, setItems] = useState([{ description: '', quantity: 1, price: 0, taxable: true }]);
 
   // Print Preview state
@@ -62,7 +63,7 @@ export default function InvoicesCMS() {
   };
 
   // Calculations
-  const calculateTotals = (itemsList) => {
+  const calculateTotals = (itemsList, discountInput = 0) => {
     let subtotal = 0;
     let taxableAmount = 0;
     itemsList.forEach(item => {
@@ -73,8 +74,9 @@ export default function InvoicesCMS() {
       }
     });
     const tax = taxableAmount * 0.06;
-    const total = subtotal + tax;
-    return { subtotal, tax, total };
+    const discount = Math.min(Math.max(0, parseFloat(discountInput) || 0), subtotal + tax);
+    const total = subtotal + tax - discount;
+    return { subtotal, tax, discount, total };
   };
 
   const openAddModal = () => {
@@ -85,6 +87,7 @@ export default function InvoicesCMS() {
     setIssueDate(new Date().toISOString().slice(0, 10));
     setDueDate('');
     setNotes('Payment due upon receipt. Thank you for your business!');
+    setDiscount('');
     setItems([{ description: '', quantity: 1, price: 0, taxable: true }]);
     setShowModal(true);
   };
@@ -97,6 +100,7 @@ export default function InvoicesCMS() {
     setIssueDate(inv.issueDate || '');
     setDueDate(inv.dueDate || '');
     setNotes(inv.notes || '');
+    setDiscount(inv.discount ? String(inv.discount) : '');
     setItems(Array.isArray(inv.items) && inv.items.length > 0 ? inv.items : [{ description: '', quantity: 1, price: 0, taxable: true }]);
     setShowModal(true);
   };
@@ -108,7 +112,7 @@ export default function InvoicesCMS() {
       return;
     }
 
-    const { subtotal, tax, total } = calculateTotals(items);
+    const { subtotal, tax, discount: appliedDiscount, total } = calculateTotals(items, discount);
     const fields = {
       customerId: parseInt(customerId),
       type: docType,
@@ -118,6 +122,7 @@ export default function InvoicesCMS() {
       items,
       subtotal,
       tax,
+      discount: appliedDiscount,
       total,
       notes: notes.trim()
     };
@@ -165,7 +170,7 @@ export default function InvoicesCMS() {
     return matchesSearch && matchesType && matchesStatus;
   });
 
-  const totals = calculateTotals(items);
+  const totals = calculateTotals(items, discount);
 
   return (
 
@@ -263,6 +268,11 @@ export default function InvoicesCMS() {
                     <td style={{ padding: '1rem', textAlign: 'right', color: 'var(--brand-primary)' }}>${(inv.tax || 0).toFixed(2)}</td>
                     <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 'bold', color: 'var(--accent)' }}>
                       ${(inv.total || 0).toFixed(2)}
+                      {inv.discount > 0 && (
+                        <div style={{ fontSize: '0.72rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>
+                          incl. -${inv.discount.toFixed(2)} discount
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '1rem', textAlign: 'center' }}>
                       <span className={`status-badge ${
@@ -442,6 +452,19 @@ export default function InvoicesCMS() {
                       <span>KY Sales Tax (6%):</span>
                       <span>${totals.tax.toFixed(2)}</span>
                     </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem', gap: '0.5rem' }}>
+                      <span>Discount ($):</span>
+                      <input
+                        type="number" min="0" step="0.01" placeholder="0.00" aria-label="Discount amount"
+                        value={discount} onChange={e => setDiscount(e.target.value)}
+                        style={{ width: '110px', padding: '0.3rem 0.5rem', textAlign: 'right' }}
+                      />
+                    </div>
+                    {(parseFloat(discount) || 0) > totals.discount && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'right' }}>
+                        Discount can't exceed the total — capped at ${totals.discount.toFixed(2)}.
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', fontWeight: 'bold', borderTop: '1px solid var(--border)', paddingTop: '0.5rem', color: 'var(--accent)' }}>
                       <span>Grand Total:</span>
                       <span>${totals.total.toFixed(2)}</span>
@@ -463,7 +486,7 @@ export default function InvoicesCMS() {
       {showPrintModal && activePrintDoc && (() => {
         const cust = customerMap[activePrintDoc.customerId] || { firstName: 'Guest', lastName: 'Customer', phone: '', address: '', city: '', state: '', zipCode: '' };
         const isQuote = activePrintDoc.type === 'quote';
-        const calc = calculateTotals(activePrintDoc.items || []);
+        const calc = calculateTotals(activePrintDoc.items || [], activePrintDoc.discount);
 
         return (
           <div className="modal-backdrop print-modal-backdrop" onClick={() => setShowPrintModal(false)}>
@@ -593,6 +616,12 @@ export default function InvoicesCMS() {
                       <span>KY Sales Tax (6%):</span>
                       <span>${calc.tax.toFixed(2)}</span>
                     </div>
+                    {calc.discount > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#047857' }}>
+                        <span>Discount:</span>
+                        <span>-${calc.discount.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', fontWeight: '800', borderTop: '2px solid #0f172a', paddingTop: '0.6rem', color: '#0f172a' }}>
                       <span>Grand Total:</span>
                       <span>${calc.total.toFixed(2)}</span>
