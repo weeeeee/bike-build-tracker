@@ -227,13 +227,18 @@ export default function BookkeepingCMS() {
 
   return (
     <div className="cms-container">
-      <div className="dash-header">
+      <div className="dash-header" style={{ gap: '1.5rem', flexWrap: 'wrap' }}>
         <div>
           <h2 style={{ margin: 0 }}>📊 Bookkeeping & Reconciliation</h2>
           <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
             Balance ordered component parts from the build tracker against billed items on customer invoices.
           </p>
         </div>
+        <img
+          src={`${import.meta.env.BASE_URL}weeecycle-logo.png`}
+          alt="Weeecycle.net — Recycle the Fun!"
+          style={{ height: '56px', width: 'auto', maxWidth: '100%' }}
+        />
       </div>
 
       {/* Customer Selector & Association Panel */}
