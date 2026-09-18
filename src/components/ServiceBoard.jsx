@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, updateJobStage, deleteJob, updateJob } from '../db/database';
 
@@ -28,15 +28,45 @@ export default function ServiceBoard() {
   const [editJobId, setEditJobId] = useState(null);
   const [editNotes, setEditNotes] = useState('');
   const [editCost, setEditCost] = useState('');
+  const [search, setSearch] = useState('');
+  const [expandedCards, setExpandedCards] = useState(new Set());
 
   const jobs = useLiveQuery(() => db.jobs.toArray()) || [];
   const customers = useLiveQuery(() => db.customers.toArray()) || [];
 
-  const customerMap = React.useMemo(() => {
+  const customerMap = useMemo(() => {
     const map = {};
     customers.forEach(c => { map[c.id] = c; });
     return map;
   }, [customers]);
+
+  const filteredJobs = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return jobs;
+    return jobs.filter(job => {
+      const cust = customerMap[job.customerId] || {};
+      const fullName = `${cust.firstName || ''} ${cust.lastName || ''}`.toLowerCase();
+      return (
+        (job.title || '').toLowerCase().includes(term) ||
+        fullName.includes(term) ||
+        (cust.phone || '').includes(term) ||
+        (job.bikeModel || '').toLowerCase().includes(term) ||
+        (job.notes || '').toLowerCase().includes(term)
+      );
+    });
+  }, [jobs, customerMap, search]);
+
+  const toggleCard = (jobId) => {
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(jobId)) {
+        next.delete(jobId);
+      } else {
+        next.add(jobId);
+      }
+      return next;
+    });
+  };
 
   const handleMove = async (jobId, currentStage, direction) => {
     const idx = STAGES.indexOf(currentStage);
@@ -66,20 +96,60 @@ export default function ServiceBoard() {
     }
   };
 
+  const isSearching = search.trim().length > 0;
+
   return (
     <div className="board-container" style={{ paddingBottom: '2rem' }}>
       <div className="dash-header" style={{ marginBottom: '1.5rem' }}>
-        <div>
+        <div style={{ flex: 1 }}>
           <h2 style={{ margin: 0 }}>Service Board (Kanban Workflow)</h2>
           <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
             {jobs.length} active job{jobs.length !== 1 ? 's' : ''} across 8 workshop stages
           </p>
         </div>
+
+        {/* Search Bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', maxWidth: '320px', width: '100%' }}>
+          <div style={{ position: 'relative', flex: 1 }}>
+            <span style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.95rem', pointerEvents: 'none' }}>🔍</span>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search jobs, customers, bikes..."
+              style={{
+                width: '100%',
+                padding: '0.45rem 0.75rem 0.45rem 2rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-main)',
+                fontSize: '0.9rem',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+          {isSearching && (
+            <button
+              onClick={() => setSearch('')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', color: 'var(--text-muted)', padding: '0.25rem' }}
+              title="Clear search"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
+
+      {isSearching && (
+        <p style={{ margin: '-0.75rem 0 1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+          Showing {filteredJobs.length} result{filteredJobs.length !== 1 ? 's' : ''} for "{search.trim()}"
+        </p>
+      )}
 
       <div className="kanban-wrapper" style={{ display: 'flex', gap: '1.25rem', overflowX: 'auto', paddingBottom: '1.5rem', minHeight: '65vh' }}>
         {STAGES.map(stage => {
-          const stageJobs = jobs.filter(j => j.stage === stage);
+          const stageJobs = filteredJobs.filter(j => j.stage === stage);
           const color = STAGE_COLORS[stage] || '#6b7280';
 
           return (
@@ -96,58 +166,85 @@ export default function ServiceBoard() {
 
               {stageJobs.length === 0 ? (
                 <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', fontStyle: 'italic', background: 'var(--bg-card)', borderRadius: '8px', border: '1px dashed var(--border-color)', margin: 'auto 0' }}>
-                  No jobs in this stage
+                  {isSearching ? 'No matches' : 'No jobs in this stage'}
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   {stageJobs.map(job => {
                     const cust = customerMap[job.customerId] || { firstName: 'Unknown', lastName: 'Customer', phone: '' };
+                    const isExpanded = expandedCards.has(job.id);
 
                     return (
-                      <div key={job.id} className="kanban-card" style={{ background: 'var(--bg-card)', borderRadius: '10px', padding: '1rem', border: '1px solid var(--border-color)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '0.75rem' }}>
-                        <div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                            <h4 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--brand-primary)' }}>{job.title}</h4>
-                            <div style={{ display: 'flex', gap: '0.25rem' }}>
-                              <button className="btn-icon" onClick={() => openEditModal(job)} title="Edit Notes & Cost" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem' }}>✏️</button>
-                              <button className="btn-icon" onClick={() => handleDelete(job.id, job.title)} title="Delete Job" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem' }}>🗑️</button>
+                      <div key={job.id} className="kanban-card" style={{ background: 'var(--bg-card)', borderRadius: '10px', border: '1px solid var(--border-color)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+                        {/* Card Header — always visible, click to toggle */}
+                        <div
+                          onClick={() => toggleCard(job.id)}
+                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', cursor: 'pointer', gap: '0.5rem', userSelect: 'none' }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <h4 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--brand-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {job.title}
+                            </h4>
+                            <p style={{ margin: '0.15rem 0 0', fontSize: '0.82rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              👤 {cust.firstName} {cust.lastName}
+                            </p>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                            <button
+                              className="btn-icon"
+                              onClick={e => { e.stopPropagation(); openEditModal(job); }}
+                              title="Edit Notes & Cost"
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem', padding: '0.15rem' }}
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              className="btn-icon"
+                              onClick={e => { e.stopPropagation(); handleDelete(job.id, job.title); }}
+                              title="Delete Job"
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem', padding: '0.15rem' }}
+                            >
+                              🗑️
+                            </button>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', transition: 'transform 0.2s', display: 'inline-block', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+                          </div>
+                        </div>
+
+                        {/* Expandable body */}
+                        {isExpanded && (
+                          <div style={{ padding: '0 1rem 1rem', borderTop: '1px solid var(--border-color)' }}>
+                            <div style={{ paddingTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                              {cust.phone && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>📞 {cust.phone}</p>}
+                              {job.bikeModel && <p style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.85rem' }}>🚲 {job.bikeModel}</p>}
+                              {job.estimatedCost && <p style={{ margin: 0, color: '#10b981', fontSize: '0.85rem', fontWeight: 'bold' }}>💰 Est. Cost: ${parseFloat(job.estimatedCost).toFixed(2)}</p>}
+                              {job.notes && (
+                                <div style={{ marginTop: '0.4rem', padding: '0.5rem', background: 'var(--bg-surface)', borderRadius: '6px', fontSize: '0.85rem', color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>
+                                  {job.notes}
+                                </div>
+                              )}
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)' }}>
+                              <button
+                                className="btn btn-sm"
+                                onClick={() => handleMove(job.id, job.stage, 'prev')}
+                                disabled={STAGES.indexOf(job.stage) === 0}
+                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', opacity: STAGES.indexOf(job.stage) === 0 ? 0.3 : 1 }}
+                              >
+                                ← Prev
+                              </button>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Stage {STAGES.indexOf(job.stage) + 1}/8</span>
+                              <button
+                                className="btn btn-sm btn-primary"
+                                onClick={() => handleMove(job.id, job.stage, 'next')}
+                                disabled={STAGES.indexOf(job.stage) === STAGES.length - 1}
+                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', opacity: STAGES.indexOf(job.stage) === STAGES.length - 1 ? 0.3 : 1 }}
+                              >
+                                Next →
+                              </button>
                             </div>
                           </div>
-
-                          <p style={{ margin: '0.25rem 0 0.5rem 0', fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.95rem' }}>
-                            👤 {cust.firstName} {cust.lastName}
-                          </p>
-
-                          {cust.phone && <p style={{ margin: '0 0 0.4rem 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>📞 {cust.phone}</p>}
-                          {job.bikeModel && <p style={{ margin: '0 0 0.4rem 0', color: 'var(--text-main)', fontSize: '0.85rem' }}>🚲 {job.bikeModel}</p>}
-                          {job.estimatedCost && <p style={{ margin: '0 0 0.4rem 0', color: '#10b981', fontSize: '0.85rem', fontWeight: 'bold' }}>💰 Est. Cost: ${parseFloat(job.estimatedCost).toFixed(2)}</p>}
-                          
-                          {job.notes && (
-                            <div style={{ margin: '0.5rem 0 0 0', padding: '0.5rem', background: 'var(--bg-surface)', borderRadius: '6px', fontSize: '0.85rem', color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>
-                              {job.notes}
-                            </div>
-                          )}
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)' }}>
-                          <button
-                            className="btn btn-sm"
-                            onClick={() => handleMove(job.id, job.stage, 'prev')}
-                            disabled={STAGES.indexOf(job.stage) === 0}
-                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', opacity: STAGES.indexOf(job.stage) === 0 ? 0.3 : 1 }}
-                          >
-                            ← Prev
-                          </button>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Stage {STAGES.indexOf(job.stage) + 1}/8</span>
-                          <button
-                            className="btn btn-sm btn-primary"
-                            onClick={() => handleMove(job.id, job.stage, 'next')}
-                            disabled={STAGES.indexOf(job.stage) === STAGES.length - 1}
-                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', opacity: STAGES.indexOf(job.stage) === STAGES.length - 1 ? 0.3 : 1 }}
-                          >
-                            Next →
-                          </button>
-                        </div>
+                        )}
                       </div>
                     );
                   })}

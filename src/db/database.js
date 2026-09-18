@@ -172,14 +172,48 @@ db.version(11).stores({
   manualPartsCosts: '++id, customerId, name, price, createdAt',
 });
 
+// v12: adds receipts (metadata cache; the receipt files themselves live on the server)
+db.version(12).stores({
+  builds: '++id, name, customerId, createdAt, updatedAt',
+  components: '++id, buildId, type, status',
+  orders: '++id, buildId, componentType, status, orderDate',
+  extras: '++id, buildId, status',
+  geometry: '++id, &buildId',
+  customers: '++id, firstName, lastName, phone, email, stripeCustomerId, city, state',
+  jobs: '++id, customerId, title, stage, bikeModel, estimatedCost, notes, createdAt, updatedAt',
+  invoices: '++id, customerId, type, status, issueDate, dueDate, stripeInvoiceId, hostedInvoiceUrl, createdAt, updatedAt',
+  manualPartsCosts: '++id, customerId, name, price, createdAt',
+  receipts: '++id, customerId, date, vendor, category, createdAt',
+});
+
 export async function associateCustomerToBuild(buildId, customerId) {
-  return db.builds.update(buildId, {
-    customerId: customerId ? parseInt(customerId) : null,
-    updatedAt: new Date().toISOString()
-  });
+  const val = customerId ? parseInt(customerId) : null;
+  try {
+    const build = await db.builds.get(buildId);
+    if (build) {
+      await fetch(`${API_BASE}/builds/${buildId}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ name: build.name, description: build.description || '', customerId: val })
+      });
+    }
+  } catch (err) { console.warn('Server sync failed', err); }
+  return db.builds.update(buildId, { customerId: val, updatedAt: new Date().toISOString() });
 }
 
 export async function addManualPartsCost(customerId, fields) {
+  try {
+    const res = await fetch(`${API_BASE}/manual-parts-costs`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ customerId, name: fields.name, price: fields.price })
+    });
+    if (isJsonResponse(res)) {
+      const data = await res.json();
+      await db.manualPartsCosts.put(data);
+      return data.id;
+    }
+  } catch (err) { console.warn('Server sync failed, saving locally', err); }
   return db.manualPartsCosts.add({
     customerId: customerId ? parseInt(customerId) : null,
     name: fields.name,
@@ -189,40 +223,155 @@ export async function addManualPartsCost(customerId, fields) {
 }
 
 export async function deleteManualPartsCost(id) {
+  try {
+    await fetch(`${API_BASE}/manual-parts-costs/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+  } catch (err) { console.warn('Server sync failed', err); }
   return db.manualPartsCosts.delete(id);
+}
+
+// Receipts: files are stored on the server only, so unlike other records there is no offline fallback.
+async function receiptRequest(path, options = {}) {
+  const res = await fetch(`${API_BASE}/receipts${path}`, { ...options, headers: getAuthHeaders() });
+  if (!isJsonResponse(res)) {
+    let msg = 'Could not reach the workshop server.';
+    try { msg = (await res.json()).error || msg; } catch { /* not JSON */ }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+export async function addReceipt(fields) {
+  const data = await receiptRequest('', { method: 'POST', body: JSON.stringify(fields) });
+  await db.receipts.put(data);
+  return data;
+}
+
+export async function updateReceipt(id, fields) {
+  const data = await receiptRequest(`/${id}`, { method: 'PUT', body: JSON.stringify(fields) });
+  await db.receipts.put(data);
+  return data;
+}
+
+export async function deleteReceipt(id) {
+  await receiptRequest(`/${id}`, { method: 'DELETE' });
+  return db.receipts.delete(id);
+}
+
+// Opens the full receipt file in a new tab (fetched with auth, then shown from a blob URL).
+export async function openReceiptFile(id) {
+  const tab = window.open('', '_blank');
+  try {
+    const res = await fetch(`${API_BASE}/receipts/${id}/file`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error('Could not load the receipt file.');
+    const url = URL.createObjectURL(await res.blob());
+    if (tab) {
+      tab.location.href = url;
+    } else if (!window.open(url, '_blank')) {
+      URL.revokeObjectURL(url);
+      throw new Error('Your browser blocked the pop-up. Allow pop-ups for this site to view receipts.');
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+  } catch (err) {
+    if (tab) tab.close();
+    throw err;
+  }
+}
+
+export async function migrateLocalBuildsToServer() {
+  // 1. Get server builds to detect what's already there
+  let serverBuilds = [];
+  try {
+    const r = await fetch(`${API_BASE}/builds`, { headers: getAuthHeaders() });
+    if (isJsonResponse(r)) { const d = await r.json(); serverBuilds = d.builds || []; }
+  } catch (_) {}
+
+  // 2. Find local builds not yet on the server (by name+createdAt)
+  const localBuilds = await db.builds.toArray();
+  const toMigrate = localBuilds.filter(b =>
+    !serverBuilds.some(s => s.name === b.name && s.createdAt === b.createdAt)
+  );
+  if (toMigrate.length === 0) {
+    await syncWorkshopData();
+    return 0;
+  }
+
+  const [allComps, allOrders, allExtras, allGeo] = await Promise.all([
+    db.components.toArray(), db.orders.toArray(),
+    db.extras.toArray(), db.geometry.toArray()
+  ]);
+
+  let migrated = 0;
+  for (const build of toMigrate) {
+    try {
+      const res = await fetch(`${API_BASE}/builds/migrate`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          build,
+          components: allComps.filter(c => c.buildId === build.id),
+          orders: allOrders.filter(o => o.buildId === build.id),
+          extras: allExtras.filter(e => e.buildId === build.id),
+          geometry: allGeo.find(g => g.buildId === build.id) || null
+        })
+      });
+      if (isJsonResponse(res)) migrated++;
+    } catch (err) { console.warn('Migration failed for build:', build.name, err); }
+  }
+
+  // 3. Full sync to replace local IDs with server IDs
+  await syncWorkshopData();
+  return migrated;
 }
 
 
 
 export async function saveGeometry(buildId, fields) {
+  try {
+    const res = await fetch(`${API_BASE}/builds/${buildId}/geometry`, {
+      method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(fields)
+    });
+    if (isJsonResponse(res)) {
+      const data = await res.json();
+      await db.geometry.put(data);
+      return data.id;
+    }
+  } catch (err) { console.warn('Server sync failed', err); }
   const existing = await db.geometry.where('buildId').equals(buildId).first();
-  if (existing) {
-    return db.geometry.update(existing.id, { ...fields, updatedAt: new Date().toISOString() });
-  }
+  if (existing) return db.geometry.update(existing.id, { ...fields, updatedAt: new Date().toISOString() });
   return db.geometry.add({ buildId, ...fields, updatedAt: new Date().toISOString() });
 }
 
 export async function createBuild(name, description = '') {
+  try {
+    const res = await fetch(`${API_BASE}/builds`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ name, description })
+    });
+    if (isJsonResponse(res)) {
+      const data = await res.json();
+      await db.builds.put(data.build);
+      if (data.components?.length) await db.components.bulkPut(data.components);
+      return data.build.id;
+    }
+  } catch (err) { console.warn('Server sync failed, saving locally', err); }
+  // Offline fallback
   return db.transaction('rw', db.builds, db.components, async () => {
     const now = new Date().toISOString();
     const buildId = await db.builds.add({ name, description, createdAt: now, updatedAt: now });
-    const stubs = COMPONENT_TYPES.map(type => ({
-      buildId,
-      type,
-      name: '',
-      imageUrls: [],
-      price: '',
-      description: '',
-      notes: '',
-      sourceUrl: '',
-      status: 'planned',
-    }));
+    const stubs = COMPONENT_TYPES.map(type => ({ buildId, type, name: '', imageUrls: [], price: '', description: '', notes: '', sourceUrl: '', status: 'planned' }));
     await db.components.bulkAdd(stubs);
     return buildId;
   });
 }
 
 export async function deleteBuild(id) {
+  try {
+    await fetch(`${API_BASE}/builds/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+  } catch (err) { console.warn('Server sync failed', err); }
   return db.transaction('rw', db.builds, db.components, db.orders, db.extras, async () => {
     await db.components.where('buildId').equals(id).delete();
     await db.orders.where('buildId').equals(id).delete();
@@ -232,38 +381,78 @@ export async function deleteBuild(id) {
 }
 
 export async function addExtra(buildId, fields) {
+  try {
+    const res = await fetch(`${API_BASE}/builds/${buildId}/extras`, {
+      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(fields)
+    });
+    if (isJsonResponse(res)) {
+      const data = await res.json();
+      await db.extras.put(data);
+      return data.id;
+    }
+  } catch (err) { console.warn('Server sync failed, saving locally', err); }
   return db.extras.add({ buildId, ...fields, createdAt: new Date().toISOString() });
 }
 
 export async function updateExtra(id, fields) {
+  try {
+    await fetch(`${API_BASE}/extras/${id}`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(fields) });
+  } catch (err) { console.warn('Server sync failed', err); }
   return db.extras.update(id, fields);
 }
 
 export async function deleteExtra(id) {
+  try {
+    await fetch(`${API_BASE}/extras/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+  } catch (err) { console.warn('Server sync failed', err); }
   return db.extras.delete(id);
 }
 
 export async function renameBuild(id, name) {
+  try {
+    const build = await db.builds.get(id);
+    await fetch(`${API_BASE}/builds/${id}`, {
+      method: 'PUT', headers: getAuthHeaders(),
+      body: JSON.stringify({ name, description: build?.description || '', customerId: build?.customerId ?? null })
+    });
+  } catch (err) { console.warn('Server sync failed', err); }
   return db.builds.update(id, { name, updatedAt: new Date().toISOString() });
 }
 
 export async function updateComponent(id, fields) {
+  try {
+    await fetch(`${API_BASE}/components/${id}`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(fields) });
+  } catch (err) { console.warn('Server sync failed', err); }
   const comp = await db.components.get(id);
-  if (comp) {
-    await db.builds.update(comp.buildId, { updatedAt: new Date().toISOString() });
-  }
+  if (comp) await db.builds.update(comp.buildId, { updatedAt: new Date().toISOString() });
   return db.components.update(id, fields);
 }
 
 export async function addOrder(buildId, fields) {
+  try {
+    const res = await fetch(`${API_BASE}/builds/${buildId}/orders`, {
+      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(fields)
+    });
+    if (isJsonResponse(res)) {
+      const data = await res.json();
+      await db.orders.put(data);
+      return data.id;
+    }
+  } catch (err) { console.warn('Server sync failed, saving locally', err); }
   return db.orders.add({ buildId, ...fields, createdAt: new Date().toISOString() });
 }
 
 export async function updateOrder(id, fields) {
+  try {
+    await fetch(`${API_BASE}/orders/${id}`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(fields) });
+  } catch (err) { console.warn('Server sync failed', err); }
   return db.orders.update(id, fields);
 }
 
 export async function deleteOrder(id) {
+  try {
+    await fetch(`${API_BASE}/orders/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+  } catch (err) { console.warn('Server sync failed', err); }
   return db.orders.delete(id);
 }
 
@@ -340,32 +529,67 @@ export async function importBackup(file) {
 const API_BASE = '/api';
 
 function getAuthHeaders() {
-  const token = sessionStorage.getItem('mechanic_token') || '';
+  const token = localStorage.getItem('mechanic_token') || '';
   return {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${token}`
   };
 }
 
+// Safe helper: returns true only if response is OK AND returns JSON (not HTML)
+function isJsonResponse(res) {
+  if (!res.ok) return false;
+  const ct = res.headers.get('content-type') || '';
+  return ct.includes('application/json');
+}
+
 export async function syncWorkshopData() {
   try {
     const custRes = await fetch(`${API_BASE}/customers`, { headers: getAuthHeaders() });
-    if (custRes.ok) {
+    if (isJsonResponse(custRes)) {
       const customers = await custRes.json();
-      await db.customers.clear();
-      await db.customers.bulkPut(customers);
+      const localCount = await db.customers.count();
+      if (customers.length >= localCount) { await db.customers.clear(); await db.customers.bulkPut(customers); }
     }
     const jobRes = await fetch(`${API_BASE}/jobs`, { headers: getAuthHeaders() });
-    if (jobRes.ok) {
+    if (isJsonResponse(jobRes)) {
       const jobs = await jobRes.json();
-      await db.jobs.clear();
-      await db.jobs.bulkPut(jobs);
+      const localCount = await db.jobs.count();
+      if (jobs.length >= localCount) { await db.jobs.clear(); await db.jobs.bulkPut(jobs); }
     }
     const invRes = await fetch(`${API_BASE}/invoices`, { headers: getAuthHeaders() });
-    if (invRes.ok) {
+    if (isJsonResponse(invRes)) {
       const invoices = await invRes.json();
-      await db.invoices.clear();
-      await db.invoices.bulkPut(invoices);
+      const localCount = await db.invoices.count();
+      if (invoices.length >= localCount) { await db.invoices.clear(); await db.invoices.bulkPut(invoices); }
+    }
+    const mpcRes = await fetch(`${API_BASE}/manual-parts-costs`, { headers: getAuthHeaders() });
+    if (isJsonResponse(mpcRes)) {
+      const manualPartsCosts = await mpcRes.json();
+      if (manualPartsCosts.length > 0) { await db.manualPartsCosts.clear(); await db.manualPartsCosts.bulkPut(manualPartsCosts); }
+    }
+    const receiptsRes = await fetch(`${API_BASE}/receipts`, { headers: getAuthHeaders() });
+    if (isJsonResponse(receiptsRes)) {
+      await db.receipts.clear();
+      await db.receipts.bulkPut(await receiptsRes.json());
+    }
+    // Sync builds + all nested data
+    const buildsRes = await fetch(`${API_BASE}/builds`, { headers: getAuthHeaders() });
+    if (isJsonResponse(buildsRes)) {
+      const d = await buildsRes.json();
+      const localBuildCount = await db.builds.count();
+      if ((d.builds || []).length >= localBuildCount) {
+        await db.builds.clear();
+        await db.builds.bulkPut(d.builds || []);
+        await db.components.clear();
+        await db.components.bulkPut(d.components || []);
+        await db.orders.clear();
+        await db.orders.bulkPut(d.orders || []);
+        await db.extras.clear();
+        await db.extras.bulkPut(d.extras || []);
+        await db.geometry.clear();
+        await db.geometry.bulkPut(d.geometry || []);
+      }
     }
   } catch (err) {
     console.warn('Offline or unable to reach workshop server. Using local Dexie cache.', err);
@@ -380,7 +604,7 @@ export async function createCustomer(fields) {
       headers: getAuthHeaders(),
       body: JSON.stringify(fields)
     });
-    if (res.ok) {
+    if (isJsonResponse(res)) {
       const data = await res.json();
       await db.customers.put(data);
       return data.id;
@@ -421,7 +645,7 @@ export async function createJob(fields) {
       headers: getAuthHeaders(),
       body: JSON.stringify(fields)
     });
-    if (res.ok) {
+    if (isJsonResponse(res)) {
       const data = await res.json();
       await db.jobs.put(data);
       return data.id;
@@ -471,7 +695,7 @@ export async function createInvoice(fields) {
       headers: getAuthHeaders(),
       body: JSON.stringify(fields)
     });
-    if (res.ok) {
+    if (isJsonResponse(res)) {
       const data = await res.json();
       await db.invoices.put(data);
       return data.id;
@@ -500,19 +724,5 @@ export async function deleteInvoice(id) {
     });
   } catch (err) { console.warn('Server sync failed', err); }
   return db.invoices.delete(id);
-}
-
-export async function sendStripeInvoice(id) {
-  const res = await fetch(`${API_BASE}/invoices/${id}/send-stripe`, {
-    method: 'POST',
-    headers: getAuthHeaders()
-  });
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(errText || 'Failed to send Stripe invoice');
-  }
-  const data = await res.json();
-  await db.invoices.put(data.invoice);
-  return data;
 }
 

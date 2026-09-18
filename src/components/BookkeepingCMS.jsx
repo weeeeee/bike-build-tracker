@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, associateCustomerToBuild, COMPONENT_LABELS, addManualPartsCost, deleteManualPartsCost } from '../db/database';
+import ReceiptsPanel from './ReceiptsPanel';
 
 export default function BookkeepingCMS() {
+  const [bkTab, setBkTab] = useState('reconciliation');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [linkBuildId, setLinkBuildId] = useState('');
   const [manualPartName, setManualPartName] = useState('');
@@ -18,6 +20,7 @@ export default function BookkeepingCMS() {
   const allOrders = useLiveQuery(() => db.orders.toArray()) || [];
   const allExtras = useLiveQuery(() => db.extras.toArray()) || [];
   const allManualCosts = useLiveQuery(() => db.manualPartsCosts ? db.manualPartsCosts.toArray() : []) || [];
+  const allReceipts = useLiveQuery(() => db.receipts.toArray()) || [];
 
   const selectedCustomer = customers.find(c => c.id === parseInt(selectedCustomerId));
 
@@ -202,7 +205,9 @@ export default function BookkeepingCMS() {
     const billedLaborRevenue = billedItems.filter(i => !i.taxable).reduce((sum, i) => sum + i.total, 0);
     const totalInvoiceRevenue = billedItems.reduce((sum, i) => sum + i.total, 0);
     const unbilledLeakage = unmatchedParts.reduce((sum, p) => sum + p.price, 0);
-    const totalProfit = billedLaborRevenue + partsProfit;
+    const customerReceipts = allReceipts.filter(r => r.customerId === parseInt(selectedCustomerId));
+    const receiptsCost = customerReceipts.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+    const totalProfit = billedLaborRevenue + partsProfit - receiptsCost;
 
     return {
       trackedParts,
@@ -218,12 +223,56 @@ export default function BookkeepingCMS() {
         billedLaborRevenue,
         totalInvoiceRevenue,
         unbilledLeakage,
+        receiptsCost,
+        receiptsCount: customerReceipts.length,
         totalProfit
       }
     };
   };
 
   const recon = getReconciliationData();
+
+  const computeProfit = (year = null) => {
+    return customers.reduce((total, customer) => {
+      const custInvoices = invoices.filter(inv => {
+        if (inv.customerId !== customer.id) return false;
+        return year === null || (inv.issueDate || inv.createdAt || '').startsWith(String(year));
+      });
+      if (custInvoices.length === 0) return total;
+      const billedItems = [];
+      custInvoices.forEach(inv => {
+        let items = [];
+        try { items = typeof inv.items === 'string' ? JSON.parse(inv.items) : (inv.items || []); } catch (e) {}
+        items.forEach(item => billedItems.push({
+          total: (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 1),
+          taxable: item.taxable !== false,
+        }));
+      });
+      const manualCost = allManualCosts
+        .filter(m => m.customerId === customer.id)
+        .reduce((sum, m) => sum + (parseFloat(m.price) || 0), 0);
+      const billedParts = billedItems.filter(i => i.taxable).reduce((sum, i) => sum + i.total, 0);
+      const billedLabor = billedItems.filter(i => !i.taxable).reduce((sum, i) => sum + i.total, 0);
+      return total + billedLabor + (billedParts - (billedParts + manualCost));
+    }, 0);
+  };
+
+  const computeRevenue = (year = null) =>
+    invoices
+      .filter(inv => year === null || (inv.issueDate || inv.createdAt || '').startsWith(String(year)))
+      .reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0);
+
+  const computeReceipts = (year = null) =>
+    allReceipts
+      .filter(r => year === null || (r.date || '').startsWith(String(year)))
+      .reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+
+  const totalReceipts     = computeReceipts();
+  const yearly2026Receipts = computeReceipts(2026);
+  const totalProfit       = computeProfit() - totalReceipts;
+  const yearly2026Profit  = computeProfit(2026) - yearly2026Receipts;
+  const yearly2026Revenue = computeRevenue(2026);
+  const totalRevenue      = computeRevenue();
 
   return (
     <div className="cms-container">
@@ -241,28 +290,53 @@ export default function BookkeepingCMS() {
         />
       </div>
 
-      {/* Customer Selector & Association Panel */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '1.5rem', marginBottom: '2rem' }}>
-        {/* Customer Selector & Manual Cost Form */}
-        <div className="comp-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <div>
-            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem' }}>👥 Select Customer</h3>
-            <div className="input-group" style={{ marginBottom: selectedCustomer ? '1rem' : 0 }}>
-              <select 
-                value={selectedCustomerId} 
-                onChange={e => { setSelectedCustomerId(e.target.value); }}
-                style={{ padding: '0.75rem', fontSize: '1rem' }}
-              >
-                <option value="">— Choose a Customer —</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.firstName} {c.lastName} ({c.phone || c.email || 'No contact details'})
-                  </option>
-                ))}
-              </select>
-            </div>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        <button className={`btn nav-tab${bkTab === 'reconciliation' ? ' nav-tab-active' : ''}`} onClick={() => setBkTab('reconciliation')}>📊 Reconciliation</button>
+        <button className={`btn nav-tab${bkTab === 'receipts' ? ' nav-tab-active' : ''}`} onClick={() => setBkTab('receipts')}>🧾 Receipts</button>
+      </div>
+
+      {bkTab === 'receipts' ? (
+        <ReceiptsPanel customers={customers} />
+      ) : (
+      <>
+      {/* Summary Bar */}
+      <div className="bk-summary-bar">
+        <div className="comp-panel" style={{ padding: '1.25rem' }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '0.6rem', textTransform: 'uppercase' }}>Select Customer</div>
+          <select
+            value={selectedCustomerId}
+            onChange={e => setSelectedCustomerId(e.target.value)}
+            style={{ padding: '0.85rem 1rem', fontSize: '1.05rem', width: '100%' }}
+          >
+            <option value="">— Choose a Customer —</option>
+            {customers.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.firstName} {c.lastName}{c.phone ? ` · ${c.phone}` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {[
+          { label: 'TOTAL PROFIT',       value: totalProfit,       sub: `All customers · all time${totalReceipts > 0 ? ` · after $${totalReceipts.toFixed(2)} receipts` : ''}` },
+          { label: '2026 YEARLY PROFIT', value: yearly2026Profit,  sub: `All customers · 2026${yearly2026Receipts > 0 ? ` · after $${yearly2026Receipts.toFixed(2)} receipts` : ''}` },
+          { label: '2026 YEARLY REVENUE',value: yearly2026Revenue, sub: 'Gross invoiced · 2026' },
+          { label: 'TOTAL REVENUE',      value: totalRevenue,      sub: 'Gross invoiced · all time' },
+        ].map(({ label, value, sub }) => (
+          <div key={label} className="comp-panel stat-chip" style={{ padding: '1rem 0.75rem', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.2rem' }}>
+            <span className="stat-lbl" style={{ fontSize: '0.7rem' }}>{label}</span>
+            <span className="stat-val" style={{ fontSize: '1.8rem', color: value >= 0 ? 'var(--accent)' : 'var(--danger)' }}>
+              ${value.toFixed(2)}
+            </span>
+            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{sub}</span>
           </div>
-          
+        ))}
+      </div>
+
+      {/* Customer Selector & Association Panel */}
+      <div className="bk-customer-panel">
+        {/* Manual Cost Form */}
+        <div className="comp-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           {selectedCustomer && (
             <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
               <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.95rem', color: 'var(--text-main)' }}>➕ Add Manual Parts Cost</h4>
@@ -365,7 +439,7 @@ export default function BookkeepingCMS() {
         recon && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             {/* Financial Health / Summary Metrics */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem' }}>
+            <div className="bk-metrics-grid">
               <div className="stat-chip" style={{ padding: '1rem 0.75rem', textAlign: 'left', background: 'var(--bg-card)' }}>
                 <span className="stat-lbl" style={{ fontSize: '0.8rem' }}>Total Parts Cost</span>
                 <span className="stat-val" style={{ color: 'var(--text-main)', fontSize: '1.4rem' }}>
@@ -411,16 +485,26 @@ export default function BookkeepingCMS() {
               </div>
 
               <div className="stat-chip" style={{ padding: '1rem 0.75rem', textAlign: 'left', background: 'var(--bg-card)' }}>
+                <span className="stat-lbl" style={{ fontSize: '0.8rem' }}>Receipts</span>
+                <span className="stat-val" style={{ color: recon.metrics.receiptsCost > 0 ? 'var(--danger)' : 'var(--text-muted)', fontSize: '1.4rem' }}>
+                  -${recon.metrics.receiptsCost.toFixed(2)}
+                </span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  {recon.metrics.receiptsCount} linked to this customer
+                </span>
+              </div>
+
+              <div className="stat-chip" style={{ padding: '1rem 0.75rem', textAlign: 'left', background: 'var(--bg-card)' }}>
                 <span className="stat-lbl" style={{ fontSize: '0.8rem' }}>Total Profit</span>
                 <span className="stat-val" style={{ color: recon.metrics.totalProfit >= 0 ? 'var(--accent)' : 'var(--danger)', fontSize: '1.4rem' }}>
                   ${recon.metrics.totalProfit.toFixed(2)}
                 </span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Labor + parts profit</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Labor + parts profit − receipts</span>
               </div>
             </div>
 
             {/* Reconciliation Comparison Table */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+            <div className="bk-recon-grid">
               
               {/* Left Column: Parts Tracker Details */}
               <div className="comp-panel" style={{ padding: '1.5rem' }}>
@@ -570,6 +654,8 @@ export default function BookkeepingCMS() {
           <h3>Select a customer to begin bookkeeping</h3>
           <p>Reconcile and balance your parts tracking sheet against final customer billing invoices.</p>
         </div>
+      )}
+      </>
       )}
     </div>
   );

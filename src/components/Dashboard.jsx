@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, createBuild, exportBackup, importBackup } from '../db/database';
+import { db, createBuild, exportBackup, importBackup, migrateLocalBuildsToServer } from '../db/database';
 import BuildCard from './BuildCard';
 
 export default function Dashboard({ onSelectBuild }) {
@@ -8,6 +8,7 @@ export default function Dashboard({ onSelectBuild }) {
   const [newName, setNewName]     = useState('');
   const [newDesc, setNewDesc]     = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null); // null | 'syncing' | 'done' | 'error'
 
   const builds = useLiveQuery(() => db.builds.orderBy('createdAt').reverse().toArray()) || [];
 
@@ -36,6 +37,21 @@ export default function Dashboard({ onSelectBuild }) {
     }
   };
 
+  const handleSyncToServer = async () => {
+    setSyncStatus('syncing');
+    try {
+      const count = await migrateLocalBuildsToServer();
+      setSyncStatus('done');
+      setTimeout(() => setSyncStatus(null), 4000);
+      if (count > 0) alert(`✅ Synced ${count} build${count !== 1 ? 's' : ''} to server!`);
+      else alert('✅ All builds already synced — data refreshed from server.');
+    } catch (err) {
+      setSyncStatus('error');
+      alert('Sync failed: ' + err.message);
+      setTimeout(() => setSyncStatus(null), 4000);
+    }
+  };
+
   return (
     <div>
       <div className="dash-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -53,6 +69,18 @@ export default function Dashboard({ onSelectBuild }) {
             📥 {isImporting ? 'Importing...' : 'Import Backup'}
             <input type="file" accept=".json" onChange={handleImport} disabled={isImporting} style={{ display: 'none' }} />
           </label>
+          <button
+            className="btn"
+            onClick={handleSyncToServer}
+            disabled={syncStatus === 'syncing'}
+            title="Push any local-only builds to the server so they appear on all computers"
+            style={{
+              background: syncStatus === 'done' ? 'var(--accent)' : syncStatus === 'error' ? 'var(--danger)' : undefined,
+              color: syncStatus ? '#fff' : undefined
+            }}
+          >
+            {syncStatus === 'syncing' ? '⏳ Syncing...' : syncStatus === 'done' ? '✅ Synced!' : syncStatus === 'error' ? '❌ Error' : '☁️ Sync to Server'}
+          </button>
           <button className="btn btn-primary" onClick={() => setShowModal(true)}>
             + New Build
           </button>

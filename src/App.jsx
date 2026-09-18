@@ -9,9 +9,9 @@ import BookkeepingCMS from './components/BookkeepingCMS';
 import { syncWorkshopData } from './db/database';
 
 export default function App() {
-  const token = sessionStorage.getItem('mechanic_token');
+  const token = localStorage.getItem('mechanic_token');
   if (!token) {
-    window.location.href = 'https://weeecycle.net/mechanic-login.html';
+    window.location.href = '/mechanic-login.html';
     return null;
   }
 

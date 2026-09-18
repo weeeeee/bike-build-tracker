@@ -58,7 +58,7 @@ export default function BuildDetail({ buildId, onBack }) {
         customMessage: customMessage.trim()
       };
 
-      const token = sessionStorage.getItem('mechanic_token');
+      const token = localStorage.getItem('mechanic_token');
       const res = await fetch('/api/send-build-pdf', {
         method: 'POST',
         headers: { 
@@ -68,9 +68,11 @@ export default function BuildDetail({ buildId, onBack }) {
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
+      const data = res.ok && (res.headers.get('content-type') || '').includes('application/json')
+        ? await res.json()
+        : {};
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to send PDF specification.');
+        throw new Error(data.error || 'Failed to send PDF — workshop server is unavailable.');
       }
 
       setEmailStatus({ type: 'success', text: 'PDF generated and sent successfully to ' + customerEmail.trim() + '!' });

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, createInvoice, updateInvoice, deleteInvoice, sendStripeInvoice } from '../db/database';
+import { db, createInvoice, updateInvoice, deleteInvoice } from '../db/database';
 
 
 export default function InvoicesCMS() {
@@ -141,6 +141,13 @@ export default function InvoicesCMS() {
     setShowPrintModal(true);
   };
 
+  // The server's PUT rewrites every column, so send the full invoice with only the status changed.
+  const handleMarkPaid = async (inv) => {
+    const items = typeof inv.items === 'string' ? JSON.parse(inv.items) : (inv.items || []);
+    await updateInvoice(inv.id, { ...inv, items, status: 'Paid' });
+    setActivePrintDoc(prev => (prev && prev.id === inv.id ? { ...prev, status: 'Paid' } : prev));
+  };
+
 
 
 
@@ -275,15 +282,13 @@ export default function InvoicesCMS() {
                           ✏️
                         </button>
                         {inv.type === 'invoice' && inv.status !== 'Paid' && (
-                          <a 
-                            className="btn btn-sm btn-accent" 
-                            href="https://my.found.com/business/business_v391kiTbrTNb/invoices/list" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                          <button
+                            className="btn btn-sm btn-accent"
+                            onClick={() => handleMarkPaid(inv)}
+                            title="Mark this invoice as paid (after it's been paid in Found)"
                           >
-                            💳 Create Estimate
-                          </a>
+                            ✓ Mark Paid
+                          </button>
                         )}
                         <button className="btn btn-sm btn-danger" onClick={() => handleDelete(inv.id, inv.type)} title="Delete">
                           🗑️
@@ -481,7 +486,11 @@ export default function InvoicesCMS() {
                 {/* Header Section */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #e2e8f0', paddingBottom: '1.5rem', marginBottom: '2rem' }}>
                   <div>
-                    <h1 style={{ margin: '0 0 0.25rem', color: '#d97706', fontSize: '1.8rem', fontWeight: '800' }}>WEEECYCLE WORKSHOP</h1>
+                    <img
+                      src={`${import.meta.env.BASE_URL}weeecycle-logo.png`}
+                      alt="Weeecycle.net — Recycle the Fun!"
+                      style={{ display: 'block', height: '64px', width: 'auto', marginBottom: '0.5rem' }}
+                    />
                     <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>Road & Gravel Specialists</p>
                     <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem', color: '#64748b' }}>Lexington, KY • steve@weeecycle.net</p>
                   </div>
@@ -562,12 +571,15 @@ export default function InvoicesCMS() {
                         </p>
                       </>
                     )}
-                    {activePrintDoc.status !== 'Paid' && (
-                      <div className="print-hide" style={{ marginTop: '1.5rem', padding: '1rem', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0', display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
-                        <span style={{ color: '#166534', fontWeight: 'bold', fontSize: '0.9rem' }}>Found Invoicing/Estimates:</span>
-                        <a href="https://my.found.com/business/business_v391kiTbrTNb/invoices/list" target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-primary" style={{ textDecoration: 'none', background: '#16a34a', color: '#ffffff', border: 'none' }}>
-                          💳 Create Estimate
-                        </a>
+                    {activePrintDoc.type === 'invoice' && activePrintDoc.status !== 'Paid' && (
+                      <div className="print-hide" style={{ marginTop: '1.5rem', padding: '1rem', background: '#ecfdf5', borderRadius: '8px', border: '1px solid #a7f3d0', display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
+                        <span style={{ color: '#065f46', fontWeight: 'bold', fontSize: '0.9rem' }}>Paid in Found?</span>
+                        <button
+                          className="btn btn-sm btn-accent"
+                          onClick={() => handleMarkPaid(activePrintDoc)}
+                        >
+                          ✓ Mark Paid
+                        </button>
                       </div>
                     )}
                   </div>
