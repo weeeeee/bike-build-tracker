@@ -18,6 +18,7 @@ export default function CustomersCMS({ onNavigateToBoard }) {
   // Customer form state
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [company, setCompany] = useState('');
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('CA');
@@ -39,12 +40,12 @@ export default function CustomersCMS({ onNavigateToBoard }) {
   const filteredCustomers = customers.filter(c => {
     const term = search.toLowerCase();
     const fullName = `${c.firstName} ${c.lastName}`.toLowerCase();
-    return fullName.includes(term) || (c.phone && c.phone.includes(term)) || (c.city && c.city.toLowerCase().includes(term));
+    return fullName.includes(term) || (c.company && c.company.toLowerCase().includes(term)) || (c.phone && c.phone.includes(term)) || (c.city && c.city.toLowerCase().includes(term));
   });
 
   const openAddModal = () => {
     setEditCustId(null);
-    setFirstName(''); setLastName(''); setAddress('');
+    setFirstName(''); setLastName(''); setCompany(''); setAddress('');
     setCity(''); setState('CA'); setZipCode(''); setPhone(''); setEmail('');
     setShowCustModal(true);
   };
@@ -53,6 +54,7 @@ export default function CustomersCMS({ onNavigateToBoard }) {
     setEditCustId(cust.id);
     setFirstName(cust.firstName || '');
     setLastName(cust.lastName || '');
+    setCompany(cust.company || '');
     setAddress(cust.address || '');
     setCity(cust.city || '');
     setState(cust.state || 'CA');
@@ -70,6 +72,7 @@ export default function CustomersCMS({ onNavigateToBoard }) {
     const fields = {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
+      company: company.trim(),
       address: address.trim(),
       city: city.trim(),
       state,
@@ -134,7 +137,7 @@ export default function CustomersCMS({ onNavigateToBoard }) {
           <input
             type="text"
             className="search-input"
-            placeholder="🔍 Search name, phone, city..."
+            placeholder="🔍 Search name, company, phone, city..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-surface)', color: 'var(--text-main)', minWidth: '220px' }}
@@ -168,6 +171,7 @@ export default function CustomersCMS({ onNavigateToBoard }) {
                     <button className="btn-icon" onClick={() => handleDeleteCust(cust.id, `${cust.firstName} ${cust.lastName}`)} title="Delete Customer" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem' }}>🗑️</button>
                   </div>
                 </div>
+                {cust.company && <p style={{ margin: '0 0 0.4rem 0', color: 'var(--text-main)', fontWeight: '600' }}>🏢 {cust.company}</p>}
                 {cust.phone && <p style={{ margin: '0 0 0.4rem 0', color: 'var(--brand-primary)', fontWeight: 'bold' }}>📞 {cust.phone}</p>}
                 {cust.email && <p style={{ margin: '0 0 0.4rem 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>✉️ {cust.email}</p>}
                 {(cust.address || cust.city || cust.state) && (
@@ -201,6 +205,10 @@ export default function CustomersCMS({ onNavigateToBoard }) {
                   <label>Last Name *</label>
                   <input value={lastName} onChange={e => setLastName(e.target.value)} required />
                 </div>
+              </div>
+              <div className="input-group">
+                <label>Company <span style={{ color: 'var(--text-muted)', fontWeight: 'normal' }}>(optional)</span></label>
+                <input value={company} onChange={e => setCompany(e.target.value)} placeholder="e.g. Bluegrass Bike Club" />
               </div>
                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="input-group">
