@@ -702,9 +702,12 @@ export async function createInvoice(fields) {
     }
   } catch (err) { console.warn('Server sync failed, saving locally', err); }
   const now = new Date().toISOString();
-  return db.invoices.add({ ...fields, createdAt: now, updatedAt: now });
+  const { bikeImage, ...local } = fields;
+  return db.invoices.add({ ...local, hasBikeImage: !!bikeImage, createdAt: now, updatedAt: now });
 }
 
+// `bikeImage` on fields: a data URL replaces the photo, null removes it, undefined leaves it alone.
+// The photo itself is never cached locally, only whether one exists.
 export async function updateInvoice(id, fields) {
   try {
     await fetch(`${API_BASE}/invoices/${id}`, {
@@ -713,7 +716,16 @@ export async function updateInvoice(id, fields) {
       body: JSON.stringify(fields)
     });
   } catch (err) { console.warn('Server sync failed', err); }
-  return db.invoices.update(id, { ...fields, updatedAt: new Date().toISOString() });
+  const { bikeImage, ...local } = fields;
+  if (bikeImage !== undefined) local.hasBikeImage = !!bikeImage;
+  return db.invoices.update(id, { ...local, updatedAt: new Date().toISOString() });
+}
+
+// Fetches an invoice's bike photo (needs the login) and returns a temporary URL for <img src>.
+export async function fetchInvoiceImageUrl(id) {
+  const res = await fetch(`${API_BASE}/invoices/${id}/image`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error('Could not load the bike photo.');
+  return URL.createObjectURL(await res.blob());
 }
 
 export async function deleteInvoice(id) {

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, createInvoice, updateInvoice, deleteInvoice } from '../db/database';
+import { db, createInvoice, updateInvoice, deleteInvoice, fetchInvoiceImageUrl } from '../db/database';
+import { loadImage, scaledJpeg } from '../utils/imageFile';
 
 
 export default function InvoicesCMS() {
@@ -18,11 +19,17 @@ export default function InvoicesCMS() {
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
   const [discount, setDiscount] = useState('');
+  const [bikeImageNew, setBikeImageNew] = useState(null); // data URL picked in this form session
+  const [bikeImageRemoved, setBikeImageRemoved] = useState(false);
+  const [bikeImagePreview, setBikeImagePreview] = useState(null);
+  const [bikeImageError, setBikeImageError] = useState('');
   const [items, setItems] = useState([{ description: '', quantity: 1, price: 0, taxable: true }]);
 
   // Print Preview state
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [activePrintDoc, setActivePrintDoc] = useState(null);
+  const [printSession, setPrintSession] = useState(0);
+  const [printImage, setPrintImage] = useState(null); // { session, url } for the previewed document's bike photo
 
 
 
@@ -36,6 +43,21 @@ export default function InvoicesCMS() {
     customers.forEach(c => { map[c.id] = c; });
     return map;
   }, [customers]);
+
+  useEffect(() => {
+    if (!showPrintModal || !activePrintDoc?.hasBikeImage) return undefined;
+    let cancelled = false;
+    let url = null;
+    const session = printSession;
+    fetchInvoiceImageUrl(activePrintDoc.id)
+      .then(u => {
+        if (cancelled) URL.revokeObjectURL(u);
+        else { url = u; setPrintImage({ session, url: u }); }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
+  }, [showPrintModal, printSession, activePrintDoc?.id, activePrintDoc?.hasBikeImage]);
+  const printImageUrl = printImage && printImage.session === printSession ? printImage.url : null;
 
   // Handle Form line items change
   const handleItemChange = (index, field, value) => {
@@ -79,6 +101,27 @@ export default function InvoicesCMS() {
     return { subtotal, tax, discount, total };
   };
 
+  const resetBikeImage = () => {
+    setBikeImageNew(null); setBikeImageRemoved(false); setBikeImagePreview(null); setBikeImageError('');
+  };
+
+  const handleBikeImageChange = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setBikeImageError('Please choose a photo (JPG or PNG).'); return; }
+    try {
+      const dataUrl = scaledJpeg(await loadImage(file), 1600, 0.85);
+      setBikeImageNew(dataUrl); setBikeImagePreview(dataUrl); setBikeImageRemoved(false); setBikeImageError('');
+    } catch (err) {
+      setBikeImageError(err.message);
+    }
+  };
+
+  const removeBikeImage = () => {
+    setBikeImageNew(null); setBikeImagePreview(null); setBikeImageRemoved(true);
+  };
+
   const openAddModal = () => {
     setEditId(null);
     setCustomerId(customers[0]?.id || '');
@@ -88,6 +131,7 @@ export default function InvoicesCMS() {
     setDueDate('');
     setNotes('Payment due upon receipt. Thank you for your business!');
     setDiscount('');
+    resetBikeImage();
     setItems([{ description: '', quantity: 1, price: 0, taxable: true }]);
     setShowModal(true);
   };
@@ -101,6 +145,8 @@ export default function InvoicesCMS() {
     setDueDate(inv.dueDate || '');
     setNotes(inv.notes || '');
     setDiscount(inv.discount ? String(inv.discount) : '');
+    resetBikeImage();
+    if (inv.hasBikeImage) fetchInvoiceImageUrl(inv.id).then(setBikeImagePreview).catch(() => {});
     setItems(Array.isArray(inv.items) && inv.items.length > 0 ? inv.items : [{ description: '', quantity: 1, price: 0, taxable: true }]);
     setShowModal(true);
   };
@@ -124,7 +170,8 @@ export default function InvoicesCMS() {
       tax,
       discount: appliedDiscount,
       total,
-      notes: notes.trim()
+      notes: notes.trim(),
+      ...(bikeImageNew ? { bikeImage: bikeImageNew } : bikeImageRemoved ? { bikeImage: null } : {})
     };
 
     if (editId) {
@@ -142,6 +189,7 @@ export default function InvoicesCMS() {
   };
 
   const triggerPrint = (inv) => {
+    setPrintSession(n => n + 1);
     setActivePrintDoc(inv);
     setShowPrintModal(true);
   };
@@ -258,6 +306,7 @@ export default function InvoicesCMS() {
                       <span className={`status-badge ${isQuote ? 'status-ordered' : 'status-received'}`}>
                         {isQuote ? 'Quote' : 'Invoice'}
                       </span>
+                      {inv.hasBikeImage && <span title="Includes a bike photo" style={{ marginLeft: '0.5rem' }}>📷</span>}
                     </td>
                     <td style={{ padding: '1rem', fontWeight: '600' }}>
                       {cust.firstName} {cust.lastName}
@@ -432,6 +481,21 @@ export default function InvoicesCMS() {
                   </button>
                 </div>
 
+                {/* Bike photo (optional) */}
+                <div className="input-group" style={{ marginTop: '1.5rem' }}>
+                  <label>
+                    Bike photo <span style={{ color: 'var(--text-muted)', fontWeight: 'normal' }}>(optional — printed on the quote/PDF)</span>
+                  </label>
+                  {bikeImagePreview && (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', marginBottom: '0.6rem' }}>
+                      <img src={bikeImagePreview} alt="Bike preview" style={{ maxHeight: '140px', maxWidth: '240px', objectFit: 'contain', borderRadius: '8px', border: '1px solid var(--border)', background: '#fff' }} />
+                      <button type="button" className="btn btn-sm btn-danger" onClick={removeBikeImage}>Remove photo</button>
+                    </div>
+                  )}
+                  <input type="file" accept="image/*" aria-label="Bike photo" onChange={handleBikeImageChange} />
+                  {bikeImageError && <div style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '0.35rem' }}>{bikeImageError}</div>}
+                </div>
+
                 {/* Notes and Totals */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2rem', marginTop: '1.5rem' }}>
                   <div className="input-group">
@@ -553,6 +617,12 @@ export default function InvoicesCMS() {
                     </div>
                   </div>
                 </div>
+
+                {printImageUrl && (
+                  <div style={{ marginBottom: '2rem', textAlign: 'center', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                    <img src={printImageUrl} alt="Bike" style={{ maxWidth: '100%', maxHeight: '300px', objectFit: 'contain', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                  </div>
+                )}
 
                 {/* Line Items Table */}
                 <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '2rem' }}>
