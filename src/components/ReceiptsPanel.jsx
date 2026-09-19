@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, addReceipt, updateReceipt, deleteReceipt, openReceiptFile } from '../db/database';
+import { loadImage, scaledJpeg, IMAGE_ACCEPT } from '../utils/imageFile';
 
 const CATEGORIES = ['Parts', 'Tools & Equipment', 'Shop Supplies', 'Shipping', 'Other'];
 const SHOP_ITEM_CATEGORIES = ['Tools & Equipment', 'Shop Supplies'];
@@ -29,36 +30,15 @@ function readAsDataUrl(file) {
   });
 }
 
-function loadImage(file) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Couldn't read that image. Try a JPG, PNG or PDF.")); };
-    img.src = url;
-  });
-}
-
-function scaledJpeg(img, maxDim, quality) {
-  const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
-  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL('image/jpeg', quality);
-}
-
 // Photos are shrunk before upload so a phone picture is a few hundred KB, not several MB.
 async function prepareFile(file) {
-  if (file.type === 'application/pdf') {
+  if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
     if (file.size > MAX_PDF_BYTES) throw new Error('PDF is too large (4 MB max).');
-    return { fileName: file.name, fileData: await readAsDataUrl(file), thumb: null };
+    const fileData = (await readAsDataUrl(file)).replace(/^data:[^;,]*/, 'data:application/pdf');
+    return { fileName: file.name, fileData, thumb: null };
   }
-  if (!file.type.startsWith('image/')) throw new Error('Please choose a photo/image or a PDF.');
-  const img = await loadImage(file);
+  let img;
+  try { img = await loadImage(file); } catch { throw new Error('Please choose a photo/image (PNG, JPG) or a PDF.'); }
   return {
     fileName: file.name.replace(/\.[^.]+$/, '') + '.jpg',
     fileData: scaledJpeg(img, MAX_IMAGE_DIM, 0.82),
@@ -259,7 +239,7 @@ export default function ReceiptsPanel({ customers }) {
                 {!editId && (
                   <div className="input-group">
                     <label>Receipt file * (photo or PDF)</label>
-                    <input type="file" accept="image/*,application/pdf" onChange={e => { setFile(e.target.files[0] || null); setError(''); }} />
+                    <input type="file" accept={`${IMAGE_ACCEPT},application/pdf,.pdf`} onChange={e => { setFile(e.target.files[0] || null); setError(''); }} />
                     {file && <div style={{ marginTop: '0.35rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>{file.name} · {(file.size / 1024).toFixed(0)} KB</div>}
                   </div>
                 )}

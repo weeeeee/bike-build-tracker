@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, createInvoice, updateInvoice, deleteInvoice, fetchInvoiceImageUrl } from '../db/database';
-import { loadImage, scaledJpeg } from '../utils/imageFile';
+import { loadImage, scaledJpeg, IMAGE_ACCEPT } from '../utils/imageFile';
 
 
 export default function InvoicesCMS() {
@@ -23,6 +23,7 @@ export default function InvoicesCMS() {
   const [bikeImageRemoved, setBikeImageRemoved] = useState(false);
   const [bikeImagePreview, setBikeImagePreview] = useState(null);
   const [bikeImageError, setBikeImageError] = useState('');
+  const [bikeImageBusy, setBikeImageBusy] = useState(false);
   const [items, setItems] = useState([{ description: '', quantity: 1, price: 0, taxable: true }]);
 
   // Print Preview state
@@ -109,12 +110,14 @@ export default function InvoicesCMS() {
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
-    if (!file.type.startsWith('image/')) { setBikeImageError('Please choose a photo (JPG or PNG).'); return; }
+    setBikeImageBusy(true); setBikeImageError('');
     try {
       const dataUrl = scaledJpeg(await loadImage(file), 1600, 0.85);
-      setBikeImageNew(dataUrl); setBikeImagePreview(dataUrl); setBikeImageRemoved(false); setBikeImageError('');
+      setBikeImageNew(dataUrl); setBikeImagePreview(dataUrl); setBikeImageRemoved(false);
     } catch (err) {
       setBikeImageError(err.message);
+    } finally {
+      setBikeImageBusy(false);
     }
   };
 
@@ -492,7 +495,8 @@ export default function InvoicesCMS() {
                       <button type="button" className="btn btn-sm btn-danger" onClick={removeBikeImage}>Remove photo</button>
                     </div>
                   )}
-                  <input type="file" accept="image/*" aria-label="Bike photo" onChange={handleBikeImageChange} />
+                  <input type="file" accept={IMAGE_ACCEPT} aria-label="Bike photo" onChange={handleBikeImageChange} />
+                  {bikeImageBusy && <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.35rem' }}>Preparing photo…</div>}
                   {bikeImageError && <div style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '0.35rem' }}>{bikeImageError}</div>}
                 </div>
 
