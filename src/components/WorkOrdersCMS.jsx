@@ -1,6 +1,6 @@
 import { Fragment, useState, useMemo, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, fetchWorkOrderTemplates, addWorkOrder, updateWorkOrder, deleteWorkOrder, openWorkOrderPdf, emailWorkOrder } from '../db/database';
+import { db, fetchWorkOrderTemplates, addWorkOrder, updateWorkOrder, deleteWorkOrder, openWorkOrderPdf, downloadWorkOrderPdf } from '../db/database';
 
 const STATUS_COLS = [
   { key: 'pass', label: 'Pass', color: '#16a34a' },
@@ -55,13 +55,6 @@ export default function WorkOrdersCMS() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState({ type: '', text: '' });
   const initialJson = useRef('');
-
-  const [emailFor, setEmailFor] = useState(null); // { id, edition, bike }
-  const [emailTo, setEmailTo] = useState('');
-  const [emailMessage, setEmailMessage] = useState('');
-  const [emailCopy, setEmailCopy] = useState(false);
-  const [emailBusy, setEmailBusy] = useState(false);
-  const [emailStatus, setEmailStatus] = useState({ type: '', text: '' });
 
   useEffect(() => {
     let cancelled = false;
@@ -147,30 +140,17 @@ export default function WorkOrdersCMS() {
     } finally { setSaving(false); }
   };
 
-  const startEmail = (order) => {
-    const c = customerById[order.customerId];
-    setEmailFor({ id: order.id, edition: order.edition, bike: order.data.header.bike });
-    setEmailTo((c && c.email) || order.lastEmailedTo || '');
-    setEmailMessage(''); setEmailCopy(false); setEmailStatus({ type: '', text: '' });
-  };
-
-  const handleSaveEmail = async () => {
+  const handleSaveDownload = async () => {
     setSaving(true); setNotice({ type: '', text: '' });
     try {
       const saved = await persist();
-      startEmail(saved);
+      await downloadWorkOrderPdf(saved.id);
+      setNotice({ type: 'success', text: 'Saved. The PDF was downloaded to your computer.' });
     } catch (err) { setNotice({ type: 'error', text: err.message }); } finally { setSaving(false); }
   };
 
-  const sendEmail = async e => {
-    e.preventDefault();
-    setEmailBusy(true); setEmailStatus({ type: '', text: '' });
-    try {
-      await emailWorkOrder(emailFor.id, { to: emailTo.trim(), message: emailMessage.trim(), copyMe: emailCopy });
-      setEmailStatus({ type: 'success', text: `Sent to ${emailTo.trim()}.` });
-    } catch (err) {
-      setEmailStatus({ type: 'error', text: err.message });
-    } finally { setEmailBusy(false); }
+  const handleDownload = async order => {
+    try { await downloadWorkOrderPdf(order.id); } catch (err) { alert(err.message); }
   };
 
   const handlePrint = async order => {
@@ -194,7 +174,7 @@ export default function WorkOrdersCMS() {
         <div>
           <h2 style={{ margin: 0 }}>Work Orders & Inspection Checklists</h2>
           <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            Fill in the tune-up & overhaul checklist, then print it or email it to the customer as a PDF.
+            Fill in the tune-up & overhaul checklist, then print it or save it as a PDF.
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -243,13 +223,12 @@ export default function WorkOrdersCMS() {
                     <td style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{formatDate(o.data.header.date)}</td>
                     <td style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>
                       {markedCount(o)}{total ? ` of ${total}` : ''}
-                      {o.lastEmailedTo && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }} title={o.lastEmailedAt}>✉ sent to {o.lastEmailedTo}</div>}
                     </td>
                     <td style={{ padding: '0.75rem 1rem' }}>
                       <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
                         <button className="btn btn-sm" onClick={() => openEdit(o)} title="Open and edit the checklist">✏️ Edit</button>
-                        <button className="btn btn-sm" onClick={() => handlePrint(o)} title="Open the PDF to print or save">🖨️ Print</button>
-                        <button className="btn btn-sm" onClick={() => startEmail(o)} title="Email the PDF">✉️ Email</button>
+                        <button className="btn btn-sm" onClick={() => handlePrint(o)} title="Open the PDF in a new tab to view or print it">🖨️ Print</button>
+                        <button className="btn btn-sm" onClick={() => handleDownload(o)} title="Save the PDF to your computer">⬇️ PDF</button>
                         <button className="btn btn-sm btn-danger" onClick={() => handleDelete(o)} title="Delete">🗑️</button>
                       </div>
                     </td>
@@ -357,44 +336,13 @@ export default function WorkOrdersCMS() {
             <div className="modal-footer" style={{ flexWrap: 'wrap' }}>
               <button type="button" className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
               <button type="button" className="btn" onClick={handleSavePrint} disabled={saving}>🖨️ Save & Print PDF</button>
-              <button type="button" className="btn" onClick={handleSaveEmail} disabled={saving}>✉️ Save & Email PDF…</button>
+              <button type="button" className="btn" onClick={handleSaveDownload} disabled={saving}>⬇️ Save & Download PDF</button>
               <button type="button" className="btn" onClick={closeEditor} disabled={saving}>Close</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Email dialog ── */}
-      {emailFor && (
-        <div className="modal-backdrop" style={{ zIndex: 1100 }}>
-          <div className="modal-content" style={{ maxWidth: '520px' }}>
-            <div className="modal-header">
-              <h3>Email the {emailFor.edition === 'rim' ? 'Rim Brake' : 'Disc Brake'} Checklist</h3>
-              <button className="btn btn-sm btn-icon" onClick={() => setEmailFor(null)} disabled={emailBusy} style={{ background: 'none', border: 'none', fontSize: '1.2rem' }} aria-label="Close email">✕</button>
-            </div>
-            <form onSubmit={sendEmail}>
-              <div className="modal-body">
-                <div className="input-group">
-                  <label htmlFor="wo-email-to">Send the PDF to *</label>
-                  <input id="wo-email-to" type="email" required value={emailTo} onChange={e => setEmailTo(e.target.value)} placeholder="customer@example.com" autoFocus />
-                </div>
-                <div className="input-group">
-                  <label htmlFor="wo-email-message">Message (optional)</label>
-                  <textarea id="wo-email-message" rows="3" maxLength={1000} value={emailMessage} onChange={e => setEmailMessage(e.target.value)} placeholder="Add a short note to go with the PDF..." />
-                </div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={emailCopy} onChange={e => setEmailCopy(e.target.checked)} style={{ width: 'auto', margin: 0 }} /> Send me a copy too
-                </label>
-                {noticeBox(emailStatus)}
-              </div>
-              <div className="modal-footer">
-                <button type="submit" className="btn btn-primary" disabled={emailBusy}>{emailBusy ? 'Sending...' : 'Send PDF'}</button>
-                <button type="button" className="btn" onClick={() => setEmailFor(null)} disabled={emailBusy}>{emailStatus.type === 'success' ? 'Done' : 'Cancel'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

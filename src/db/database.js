@@ -304,10 +304,19 @@ export async function openWorkOrderPdf(id, presetTab) {
   }
 }
 
-export async function emailWorkOrder(id, { to, message, copyMe }) {
-  const result = await serverRequest(`/work-orders/${id}/email`, { method: 'POST', body: JSON.stringify({ to, message, copyMe }) });
-  await db.workOrders.update(id, { lastEmailedTo: to, lastEmailedAt: new Date().toISOString() });
-  return result;
+// Saves the PDF to the computer with a proper file name, e.g. work-order-WO-1042.pdf
+export async function downloadWorkOrderPdf(id) {
+  const res = await fetch(`${API_BASE}/work-orders/${id}/pdf`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error('Could not load the PDF.');
+  const name = (/filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '') || [])[1] || `work-order-${id}.pdf`;
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
 }
 
 // Receipts: files are stored on the server only, so unlike other records there is no offline fallback.
