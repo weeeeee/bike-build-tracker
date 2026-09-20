@@ -186,6 +186,21 @@ db.version(12).stores({
   receipts: '++id, customerId, date, vendor, category, createdAt',
 });
 
+// v13: adds workOrders (inspection checklists; cached from the server, which is the source of truth)
+db.version(13).stores({
+  builds: '++id, name, customerId, createdAt, updatedAt',
+  components: '++id, buildId, type, status',
+  orders: '++id, buildId, componentType, status, orderDate',
+  extras: '++id, buildId, status',
+  geometry: '++id, &buildId',
+  customers: '++id, firstName, lastName, phone, email, stripeCustomerId, city, state',
+  jobs: '++id, customerId, title, stage, bikeModel, estimatedCost, notes, createdAt, updatedAt',
+  invoices: '++id, customerId, type, status, issueDate, dueDate, stripeInvoiceId, hostedInvoiceUrl, createdAt, updatedAt',
+  manualPartsCosts: '++id, customerId, name, price, createdAt',
+  receipts: '++id, customerId, date, vendor, category, createdAt',
+  workOrders: '++id, edition, customerId, updatedAt',
+});
+
 export async function associateCustomerToBuild(buildId, customerId) {
   const val = customerId ? parseInt(customerId) : null;
   try {
@@ -230,6 +245,69 @@ export async function deleteManualPartsCost(id) {
     });
   } catch (err) { console.warn('Server sync failed', err); }
   return db.manualPartsCosts.delete(id);
+}
+
+// Work orders / inspection checklists. Like receipts, they live on the server (which also makes the PDF and sends the email).
+async function serverRequest(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers: getAuthHeaders() });
+  if (!isJsonResponse(res)) {
+    let msg = 'Could not reach the workshop server.';
+    try { msg = (await res.json()).error || msg; } catch { /* not JSON */ }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+let workOrderTemplates = null;
+export function fetchWorkOrderTemplates() {
+  if (!workOrderTemplates) {
+    workOrderTemplates = serverRequest('/work-order-templates').catch(err => { workOrderTemplates = null; throw err; });
+  }
+  return workOrderTemplates;
+}
+
+export async function addWorkOrder(fields) {
+  const data = await serverRequest('/work-orders', { method: 'POST', body: JSON.stringify(fields) });
+  await db.workOrders.put(data);
+  return data;
+}
+
+export async function updateWorkOrder(id, fields) {
+  const data = await serverRequest(`/work-orders/${id}`, { method: 'PUT', body: JSON.stringify(fields) });
+  await db.workOrders.put(data);
+  return data;
+}
+
+export async function deleteWorkOrder(id) {
+  await serverRequest(`/work-orders/${id}`, { method: 'DELETE' });
+  return db.workOrders.delete(id);
+}
+
+// Opens the work order PDF in a new tab so it can be printed or saved. Pass `presetTab` (a window opened straight
+// from the click) when a save has to happen first, otherwise the browser blocks the pop-up.
+export async function openWorkOrderPdf(id, presetTab) {
+  const tab = presetTab || window.open('', '_blank');
+  try {
+    const res = await fetch(`${API_BASE}/work-orders/${id}/pdf`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error('Could not load the PDF.');
+    const url = URL.createObjectURL(await res.blob());
+    if (tab) {
+      tab.location.href = url;
+    } else if (!window.open(url, '_blank')) {
+      URL.revokeObjectURL(url);
+      throw new Error('Your browser blocked the pop-up. Allow pop-ups for this site to open the PDF.');
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+  } catch (err) {
+    if (tab) tab.close();
+    throw err;
+  }
+}
+
+export async function emailWorkOrder(id, { to, message, copyMe }) {
+  const result = await serverRequest(`/work-orders/${id}/email`, { method: 'POST', body: JSON.stringify({ to, message, copyMe }) });
+  await db.workOrders.update(id, { lastEmailedTo: to, lastEmailedAt: new Date().toISOString() });
+  return result;
 }
 
 // Receipts: files are stored on the server only, so unlike other records there is no offline fallback.
@@ -572,6 +650,11 @@ export async function syncWorkshopData() {
     if (isJsonResponse(receiptsRes)) {
       await db.receipts.clear();
       await db.receipts.bulkPut(await receiptsRes.json());
+    }
+    const workOrdersRes = await fetch(`${API_BASE}/work-orders`, { headers: getAuthHeaders() });
+    if (isJsonResponse(workOrdersRes)) {
+      await db.workOrders.clear();
+      await db.workOrders.bulkPut(await workOrdersRes.json());
     }
     // Sync builds + all nested data
     const buildsRes = await fetch(`${API_BASE}/builds`, { headers: getAuthHeaders() });

@@ -6,6 +6,7 @@ import CustomersCMS from './components/CustomersCMS';
 import ServiceBoard from './components/ServiceBoard';
 import InvoicesCMS from './components/InvoicesCMS';
 import BookkeepingCMS from './components/BookkeepingCMS';
+import WorkOrdersCMS from './components/WorkOrdersCMS';
 import { syncWorkshopData } from './db/database';
 
 export default function App() {
@@ -19,7 +20,7 @@ export default function App() {
     syncWorkshopData();
   }, []);
 
-  const [view, setView] = useState('dashboard'); // 'dashboard', 'build', 'customers', 'service-board', 'invoices', 'bookkeeping'
+  const [view, setView] = useState('dashboard'); // 'dashboard', 'build', 'customers', 'service-board', 'work-orders', 'invoices', 'bookkeeping'
   const [buildId, setBuildId] = useState(null);
 
   const openBuild = (id) => {
@@ -74,6 +75,10 @@ export default function App() {
                 onClick={() => { setView('service-board'); setBuildId(null); }}
               >📋 Service Board</button>
               <button
+                className={`btn nav-tab${view === 'work-orders' ? ' nav-tab-active' : ''}`}
+                onClick={() => { setView('work-orders'); setBuildId(null); }}
+              >📝 Work Orders</button>
+              <button
                 className={`btn nav-tab${view === 'invoices' ? ' nav-tab-active' : ''}`}
                 onClick={() => { setView('invoices'); setBuildId(null); }}
               >📄 Quotes & Invoices</button>
@@ -98,6 +103,9 @@ export default function App() {
         )}
         {view === 'service-board' && (
           <ServiceBoard />
+        )}
+        {view === 'work-orders' && (
+          <WorkOrdersCMS />
         )}
         {view === 'invoices' && (
           <InvoicesCMS />
