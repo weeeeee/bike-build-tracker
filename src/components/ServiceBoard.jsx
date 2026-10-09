@@ -26,6 +26,7 @@ const STAGE_COLORS = {
 
 export default function ServiceBoard() {
   const [editJobId, setEditJobId] = useState(null);
+  const [editBike, setEditBike] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editCost, setEditCost] = useState('');
   const [search, setSearch] = useState('');
@@ -84,6 +85,7 @@ export default function ServiceBoard() {
 
   const openEditModal = (job) => {
     setEditJobId(job.id);
+    setEditBike(job.bikeModel || '');
     setEditNotes(job.notes || '');
     setEditCost(job.estimatedCost || '');
   };
@@ -91,7 +93,7 @@ export default function ServiceBoard() {
   const handleSaveNotes = async (e) => {
     e.preventDefault();
     if (editJobId) {
-      await updateJob(editJobId, { notes: editNotes.trim(), estimatedCost: editCost.trim() });
+      await updateJob(editJobId, { bikeModel: editBike.trim(), notes: editNotes.trim(), estimatedCost: editCost.trim() });
       setEditJobId(null);
     }
   };
@@ -193,7 +195,7 @@ export default function ServiceBoard() {
                             <button
                               className="btn-icon"
                               onClick={e => { e.stopPropagation(); openEditModal(job); }}
-                              title="Edit Notes & Cost"
+                              title="Edit Bike, Notes & Cost"
                               style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem', padding: '0.15rem' }}
                             >
                               ✏️
@@ -262,8 +264,12 @@ export default function ServiceBoard() {
             <h3 style={{ marginTop: 0 }}>Update Job Details</h3>
             <form onSubmit={handleSaveNotes}>
               <div className="input-group">
+                <label>Bike Model / Description</label>
+                <input value={editBike} onChange={e => setEditBike(e.target.value)} maxLength={200} placeholder="e.g. 2024 Trek Domane SL 6" autoFocus />
+              </div>
+              <div className="input-group">
                 <label>Estimated Cost ($)</label>
-                <input type="number" step="0.01" value={editCost} onChange={e => setEditCost(e.target.value)} placeholder="150.00" autoFocus />
+                <input type="number" step="0.01" value={editCost} onChange={e => setEditCost(e.target.value)} placeholder="150.00" />
               </div>
               <div className="input-group">
                 <label>Service Notes</label>

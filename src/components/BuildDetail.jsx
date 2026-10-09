@@ -68,7 +68,7 @@ export default function BuildDetail({ buildId, onBack }) {
         body: JSON.stringify(payload)
       });
 
-      const data = res.ok && (res.headers.get('content-type') || '').includes('application/json')
+      const data = (res.headers.get('content-type') || '').includes('application/json')
         ? await res.json()
         : {};
       if (!res.ok) {

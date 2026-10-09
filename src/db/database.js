@@ -16,6 +16,7 @@ export const COMPONENT_TYPES = [
   'stem',
   'fork',
   'handlebars',
+  'tire',
 ];
 
 export const COMPONENT_LABELS = {
@@ -34,6 +35,7 @@ export const COMPONENT_LABELS = {
   stem: 'Stem',
   fork: 'Fork',
   handlebars: 'Handlebars',
+  tire: 'Tire',
 };
 
 export const COMPONENT_STATUSES = ['planned', 'ordered', 'received', 'installed'];
